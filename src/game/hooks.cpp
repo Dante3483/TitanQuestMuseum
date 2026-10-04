@@ -996,8 +996,10 @@ void __fastcall hk_ItemBackground(void* widget, void* /*edx*/, void* canvas, con
         token = -1;
     }
     UT_LE_RESTORE;
-    if (!integration::utBgTokenSkip(token)) o_ItemBackground(widget, canvas, origin, colour, inset, met, one);
     const int save = integration::utBgTokenSave(token);
+    // Museum already reserves the shared grid edge; avoid the native second inset.
+    if (!integration::utBgTokenSkip(token))
+        o_ItemBackground(widget, canvas, origin, colour, save>=0 ? 0.0f : inset, met, one);
     if (save < 0) return;
     const DWORD leAfter = GetLastError();
     __try {

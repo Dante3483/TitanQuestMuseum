@@ -271,6 +271,31 @@ void drawPlateFrames(TqCanvas* c) {
     }
 }
 
+// Shared borders: one boundary per row/column, independent of item textures.
+void drawMuseumGrid(TqCanvas* canvas) {
+    if (!viewOn() || !g_cfg.slotPlates || !plateTransferVisible()) return;
+    UtRectF grid;
+    if (!panelSlotGrid(&grid)) return;
+    bool vertical[17][15]={},horizontal[16][16]={};
+    for (int i=0;i<protoCount();++i) {
+        int col=0,row=0,w=0,h=0;
+        if (!protoSlotAt(i,&col,&row,&w,&h) || col<0 || row<0 || col+w>16 || row+h>15) continue;
+        for (int y=row;y<row+h;++y) vertical[col][y]=vertical[col+w][y]=true;
+        for (int x=col;x<col+w;++x) horizontal[x][row]=horizontal[x][row+h]=true;
+    }
+    const TqColor bronze={0.39f,0.35f,0.26f,1.0f};
+    for (int x=0;x<=16;++x) for (int y=0;y<15;++y) if (vertical[x][y]) {
+        const UtRectF r=visualSlotRect(grid,x,y,0,1);
+        const float px=x==0?grid.x:x==16?grid.x+grid.w-2.0f:utPadRound(r.x)-1.0f;
+        fillRect(canvas,px,r.y,2.0f,r.h,bronze);
+    }
+    for (int y=0;y<=15;++y) for (int x=0;x<16;++x) if (horizontal[x][y]) {
+        const UtRectF r=visualSlotRect(grid,x,y,1,0);
+        const float py=y==0?grid.y:y==15?grid.y+grid.h-2.0f:utPadRound(r.y)-1.0f;
+        fillRect(canvas,r.x,py,r.w,2.0f,bronze);
+    }
+}
+
 // A lamp (GD's LED) at the left of a toggle; returns where its caption starts.
 
 
@@ -443,6 +468,7 @@ bool drawInner(TqCanvas* c, bool pad) {
     if (markStyle) drawMarks(c, markStyle);
     if (on && !byPage) drawSearchMarks(c, true);   // the frame, when the POST did not draw it
     const bool ok=pad ? drawPad(c) : true;
+    if (!byPage) drawMuseumGrid(c);
     drawUnknownRollover(c);
     return ok;
 }
@@ -1651,10 +1677,14 @@ int panelItemBackgroundPre(void* widget) {
         if (bare) ++g_rrSkipped;
         return utBgToken(-1, bare);   // no Post (the rect was not changed); skip or not
     }
+    // Widget positions are local to the native page; the draw later adds its origin.
     const float cellH=foot.h/(float)ih;
     slot.y += (liveVisualCell((float)sr)-sr)*cellH*scale;
     slot.h=(liveVisualCell((float)(sr+sh))-liveVisualCell((float)sr))*cellH;
     centred.y=slot.y+(slot.h-foot.h)*scale*0.5f;
+    // Inset the native background only, preserving the original icon rectangle.
+    slot.x+=1.0f; slot.y+=1.0f;
+    slot.w-=2.0f/scale; slot.h-=2.0f/scale;
     __try {
         float* r = (float*)(w + kUtWidgetRect);
         r[0] = slot.x;
@@ -1842,24 +1872,18 @@ void panelPageDrawPre(void* page, void* canvas, const void* origin, int pass) {
     }
     UtRectF gr;
     if (!panelSlotGrid(&gr)) return;   // not on a grid the items do not share
-    const float cw = gr.w / (float)kUtPadGridCols;   // the drawn cell (the art edge scales by it)
     if (plates) {
+        // Erase the old inventory-cell seams underneath the new slot grid.
+        fillRect(c,gr.x,gr.y,gr.w,gr.h,kPlateFill);
         const int n = protoCount();
-        const UtSlotArtBox* art = g_cfg.slotPlates == 3 ? slotArtNow() : nullptr;
-        int drawnArt = 0;
-        for (int i = 0; i < n; ++i) {
-            int col = 0, row = 0, w = 0, h = 0;
-            if (!protoSlotAt(i, &col, &row, &w, &h) || w < 1 || h < 1) continue;
-            const UtRectF sd = visualSlotRect(gr, col, row, w, h);   // the one helper
-            const float x = sd.x, y = sd.y, ww = sd.w, hh = sd.h;
-            const float s = cw / 32.0f;   // the texture's cell edge: 2 px left / top, 3 px right / bottom
-            if (art && drawSlotArt(c, *art, x + 2.0f * s, y + 2.0f * s, ww - 5.0f * s, hh - 5.0f * s)) {
-                ++drawnArt;
-                continue;
-            }
-            fillRect(c, x + 2.0f * s, y + 2.0f * s, ww - 5.0f * s, hh - 5.0f * s, kPlateFill);
+        // Museum owns the background; character equipment textures include unwanted borders.
+        for (int i=0;i<n;++i) {
+            int col=0,row=0,w=0,h=0;
+            if (!protoSlotAt(i,&col,&row,&w,&h)) continue;
+            const UtRectF r=visualSlotRect(gr,col,row,w,h);
+            fillRect(c,r.x+2.0f,r.y+2.0f,r.w-4.0f,r.h-4.0f,
+                     TqColor{0.205f,0.190f,0.160f,1.0f});
         }
-        slotArtSay(art, drawnArt, n);
         g_plateFrame = frame;
         g_platesAt = GetTickCount();
         if (!g_platesSaid) {
@@ -2107,6 +2131,7 @@ void pageDrawVeils(TqCanvas* c, int pass) {
     }
     const int markStyle = ownedMarksBegin(g_geo, g_cursorOk, g_cursorX, g_cursorY);
     if (markStyle) drawMarks(c, markStyle);
+    drawMuseumGrid(c);
     drawSearchMarks(c, true);   // the search's frame: over the veils, under the tooltip
     g_veilsByPage = true;
     if (!g_veilsPageSaid && markStyle) {
