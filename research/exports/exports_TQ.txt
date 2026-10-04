@@ -1,0 +1,6 @@
+0x00004160 1      ??0TelemetryManager@GAME@@QAE@ABV01@@Z
+0x00004190 2      ??4TelemetryManager@GAME@@QAEAAV01@ABV01@@Z
+0x00219004 3      ??_7TelemetryManager@GAME@@6B@
+0x00004150 4      ?isTelemetryActive@TelemetryManager@GAME@@QBE_NXZ
+0x002720b0 5      AmdPowerXpressRequestHighPerformance
+0x002720b4 6      NvOptimusEnablement

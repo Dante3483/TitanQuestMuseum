@@ -1,0 +1,17 @@
+/build/
+/dist/
+/bin/
+/out/
+/data/oracle/
+__pycache__/
+*.pyc
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.asi
+*.log
+*.tmp
+.env
+.env.*
