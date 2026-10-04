@@ -391,6 +391,39 @@ bool drawPad(TqCanvas* c);
 
 // pad = false when the page draw's POST drew the pad in the last 250 ms (the marks and
 // the plate frames stay here as before).
+// Anonymous rollover: no name, description or stat builder is invoked.
+void drawUnknownRollover(TqCanvas* canvas) {
+    if (!viewOn() || !g_cursorOk || !g_groundOk || !plateTransferVisible()) return;
+    UtRectF grid;
+    if (!panelFrameGrid(&grid)) return;
+    for (int i=0;i<protoCount();++i) {
+        int col=0,row=0,w=0,h=0; unsigned id=0;
+        if (!protoSlotAt(i,&col,&row,&w,&h) || !protoAt(i,nullptr,nullptr,nullptr,&id)) continue;
+        const UtRectF slot=visualSlotRect(grid,col,row,w,h);
+        if (g_cursorX<slot.x || g_cursorX>=slot.x+slot.w ||
+            g_cursorY<slot.y || g_cursorY>=slot.y+slot.h) continue;
+        if (!viewHideDiscoveryHover(id)) return;
+        TqColorF color={0.847f,0.776f,0.565f,1.0f};
+        const void* item=protoItem(i);
+        TqGameEngine* ge=gameEngine();
+        if (item && ge && g_tq.ItemGetActualClassification && g_tq.GameGetItemColor) {
+            const int cls=g_tq.ItemGetActualClassification(item);
+            g_tq.GameGetItemColor(ge,cls,&color);
+        }
+        ensureFont();
+        museum::game::NativeRenderer renderer(canvas,g_font);
+        const float scale=grid.w/(16.0f*32.0f);
+        const float width=70.0f*scale,height=32.0f*scale;
+        float x=g_cursorX+16.0f*scale,y=g_cursorY+18.0f*scale;
+        if (x+width>g_geo.canvasW) x=g_cursorX-width-8.0f*scale;
+        if (y+height>g_geo.canvasH) y=g_cursorY-height-8.0f*scale;
+        renderer.fill({x,y,width,height},{0.06f,0.05f,0.03f,0.96f});
+        renderer.text({x,y,width,height},L"???",(int)(16.0f*scale),
+                      {color.r,color.g,color.b,1.0f},museum::ui::TextAlign::Center);
+        return;
+    }
+}
+
 bool drawInner(TqCanvas* c, bool pad) {
     const bool on = viewOn();   // layout() ran in panelDraw, before the hover test
     // the owned marks first (under the pad). Nothing is allocated; ut_owned decides whether
@@ -409,7 +442,9 @@ bool drawInner(TqCanvas* c, bool pad) {
         (on && !byPage) ? ownedMarksBegin(g_geo, g_cursorOk, g_cursorX, g_cursorY) : 0;
     if (markStyle) drawMarks(c, markStyle);
     if (on && !byPage) drawSearchMarks(c, true);   // the frame, when the POST did not draw it
-    return pad ? drawPad(c) : true;
+    const bool ok=pad ? drawPad(c) : true;
+    drawUnknownRollover(c);
+    return ok;
 }
 
 // The pad itself: the ground, the buttons, the lamps and the label, from the rects layout() wrote.
