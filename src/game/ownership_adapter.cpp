@@ -1,3 +1,4 @@
+#include "game/visual_slots.h"
 // ut_owned.cpp - the owned marking (see ut_owned.h). GAME THREAD ONLY, except ownedMarkDirty.
 //
 // Invariants:
@@ -735,7 +736,7 @@ bool ownedMarkRect(int i, float* x, float* y, float* w, float* h) {
     // the one helper (g_cw = the mod sack's live cell = the drawn cell, fed or proven)
     const UtRectF grid = {g_gridX, g_gridY, (float)(kGridCols * (int)g_cw),
                           (float)(kGridRows * (int)g_ch)};
-    const UtRectF r = utSlotDrawnRect(grid, col, row, fw, fh);
+    const UtRectF r = visualSlotRect(grid, col, row, fw, fh);
     *x = r.x;
     *y = r.y;
     *w = r.w;
@@ -770,7 +771,7 @@ bool ownedHaveRect(int i, float* x, float* y, float* w, float* h) {
     // x the drawn cell / 32 (= the UI scale), GD's rounding
     const UtRectF grid = {g_gridX, g_gridY, (float)(kGridCols * (int)g_cw),
                           (float)(kGridRows * (int)g_ch)};
-    const UtRectF r = utSlotDrawnRect(grid, col, row, fw, fh);
+    const UtRectF r = visualSlotRect(grid, col, row, fw, fh);
     const float k = utPadRound(2.0f * (float)(int)g_cw / 32.0f);
     *x = r.x + r.w - side - k;
     *y = r.y + k;

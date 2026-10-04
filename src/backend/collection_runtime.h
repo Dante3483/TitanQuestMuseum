@@ -115,3 +115,5 @@ int livePagePlaces(UtProtoPlace* out, int cap);
 const char* liveStatus();
 
 }  // namespace integration
+
+namespace integration { float liveVisualCell(float cell, bool inverse=false); }

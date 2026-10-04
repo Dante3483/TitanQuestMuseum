@@ -456,4 +456,19 @@ int livePagePlaces(UtProtoPlace* out, int cap) {
 
 const char* liveStatus() { return g_status; }
 
+// Convert integer sack row boundaries to equal fractional visual row heights.
+float liveVisualCell(float cell, bool inverse) {
+    if (!liveActive() || g_shownGroup < 0 || g_shownGroup >= (int)g_groups->size()) return cell;
+    const auto& g=(*g_groups)[(size_t)g_shownGroup].slot;
+    if (g.rows<=0 || g.h<=0 || cell<0 || cell>15) return cell;
+    for (int i=0;i<g.rows;++i) {
+        const float a=(float)gdut::filledRowEdge(g,i*g.h,15);
+        const float b=(float)gdut::filledRowEdge(g,(i+1)*g.h,15);
+        const float va=15.0f*i/g.rows, vb=15.0f*(i+1)/g.rows;
+        const float lo=inverse?va:a, hi=inverse?vb:b;
+        if (cell<=hi) return (inverse?a:va)+(cell-lo)/(hi-lo)*(inverse?b-a:vb-va);
+    }
+    return cell;
+}
+
 }  // namespace integration

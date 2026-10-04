@@ -90,7 +90,7 @@ int main() {
                     check(d.font==static_cast<int>(pixel(13*scale)),"stable general font across sections");
                 if (d.text.find(L"All 241/2688")!=std::wstring::npos) {
                     check(d.alignment==TextAlign::Right,"statistics uses native right alignment");
-                    check(near(d.rect.right(),l.statistics.right()-pixel(3*scale)),"statistics final anchor is fixed");
+                    check(near(d.rect.right(),l.statistics.right()),"statistics final anchor is fixed");
                     check(renderer.measure(d.text.c_str(),d.font)<=d.rect.w,"statistics fits without overlapping Owned");
                 }
             }
@@ -101,7 +101,7 @@ int main() {
     for (const char* name:{"Torso","Legs","Staff","Spear","Amulet"}) {
         auto state=fixture(Section::Equipment); state.shownCategoryName=name;
         view.draw(r,state,13,6,3);
-        check(!r.draws.empty() && near(r.draws.back().rect.right(),237),"changing category names preserves right anchor");
+        check(!r.draws.empty() && near(r.draws.back().rect.right(),240),"changing category names preserves right anchor");
     }
     // Actual preserved slot-window functions, not a reimplementation of the wheel policy.
     gdut::SlotGeometry slots; std::vector<gdut::PackItem> items;

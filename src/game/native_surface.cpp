@@ -1,3 +1,4 @@
+#include "game/visual_slots.h"
 // Native game surface: proven caravan frame tracker, item slot art, silhouettes and icon/rect
 // restoration from v4.1. Control layout/rendering is delegated to ui/MuseumPanel. Input translates
 // Windows messages into controller actions; original wheel and game hook safety gates remain.
@@ -258,7 +259,7 @@ void drawPlateFrames(TqCanvas* c) {
     for (int i = 0; i < n; ++i) {
         int col = 0, row = 0, w = 0, h = 0;
         if (!protoSlotAt(i, &col, &row, &w, &h) || w < 1 || h < 1) continue;
-        const UtRectF r = utRectInset(utSlotDrawnRect(gr, col, row, w, h), 1.0f);
+        const UtRectF r = utRectInset(visualSlotRect(gr, col, row, w, h), 1.0f);
         outlineRect(c, r.x, r.y, r.w, r.h, 1.0f, kLineTop);
     }
     if (!g_frameFallbackSaid && n > 0) {
@@ -344,7 +345,7 @@ void drawSearchMarks(TqCanvas* c, bool frame) {
         if (!protoAt(i, &rec, nullptr, nullptr, nullptr, nullptr, nullptr) ||
             !protoSlotAt(i, &sc, &sr, &sw, &sh) || sw < 1 || sh < 1 || !searchHighlight(i, rec))
             continue;
-        const UtRectF r = utSearchMarkRect(utSlotDrawnRect(gr, sc, sr, sw, sh), !frame);
+        const UtRectF r = utSearchMarkRect(visualSlotRect(gr, sc, sr, sw, sh), !frame);
         if (frame) outlineRect(c, r.x, r.y, r.w, r.h, t, col);
         else fillRect(c, r.x, r.y, r.w, r.h, col);
     }
@@ -1615,6 +1616,10 @@ int panelItemBackgroundPre(void* widget) {
         if (bare) ++g_rrSkipped;
         return utBgToken(-1, bare);   // no Post (the rect was not changed); skip or not
     }
+    const float cellH=foot.h/(float)ih;
+    slot.y += (liveVisualCell((float)sr)-sr)*cellH*scale;
+    slot.h=(liveVisualCell((float)(sr+sh))-liveVisualCell((float)sr))*cellH;
+    centred.y=slot.y+(slot.h-foot.h)*scale*0.5f;
     __try {
         float* r = (float*)(w + kUtWidgetRect);
         r[0] = slot.x;
@@ -1810,7 +1815,7 @@ void panelPageDrawPre(void* page, void* canvas, const void* origin, int pass) {
         for (int i = 0; i < n; ++i) {
             int col = 0, row = 0, w = 0, h = 0;
             if (!protoSlotAt(i, &col, &row, &w, &h) || w < 1 || h < 1) continue;
-            const UtRectF sd = utSlotDrawnRect(gr, col, row, w, h);   // the one helper
+            const UtRectF sd = visualSlotRect(gr, col, row, w, h);   // the one helper
             const float x = sd.x, y = sd.y, ww = sd.w, hh = sd.h;
             const float s = cw / 32.0f;   // the texture's cell edge: 2 px left / top, 3 px right / bottom
             if (art && drawSlotArt(c, *art, x + 2.0f * s, y + 2.0f * s, ww - 5.0f * s, hh - 5.0f * s)) {
@@ -1999,8 +2004,8 @@ void drawTintRing(void* page, TqCanvas* c, const UtRectF& gr) {
         unsigned id = 0;
         if (!protoAt(i, &rec, &col, &row, &id, &w, &h) || !protoSlotAt(i, &sc, &sr, &sw, &sh))
             continue;
-        const UtRectF slot = utRectInset(utSlotDrawnRect(gr, sc, sr, sw, sh), k);
-        const UtRectF item = utRectInset(utSlotDrawnRect(gr, col, row, w, h), k);
+        const UtRectF slot = utRectInset(visualSlotRect(gr, sc, sr, sw, sh), k);
+        const UtRectF item = utRectInset(visualSlotRect(gr, col, row, w, h), k);
         UtRectF ring[4];
         const int nr = utSlotRing(slot, item, ring);
         for (int j = 0; j < nr; ++j)
@@ -2060,7 +2065,7 @@ void pageDrawVeils(TqCanvas* c, int pass) {
             UtCellRect lo[3];
             const int nl = liveLeftover(lo, 3);
             for (int i = 0; i < nl; ++i) {   // the one helper
-                const UtRectF r = utSlotDrawnRect(gr, lo[i].col, lo[i].row, lo[i].w, lo[i].h);
+                const UtRectF r = visualSlotRect(gr, lo[i].col, lo[i].row, lo[i].w, lo[i].h);
                 fillRect(c, r.x, r.y, r.w, r.h, kPadBack);
             }
         }

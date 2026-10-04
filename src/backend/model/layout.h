@@ -30,7 +30,8 @@ inline int filledRowEdge(const SlotGeometry& g, int row, int hostRows) noexcept 
     const int used = g.rows * g.h;
     if (used <= 0 || row <= 0) return 0;
     if (row >= used) return hostRows;
-    return row * hostRows / used;
+    // Round each boundary to the nearest cell, spreading spare height across rows.
+    return (row * hostRows + used / 2) / used;
 }
 inline void fillWindowSlot(const SlotGeometry& g, int hostRows, int itemH,
                            PackPlacement* p, int* height) noexcept {
