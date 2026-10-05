@@ -93,18 +93,19 @@ void markDirty() { InterlockedExchange(&g_dirty, 1); }
 // The search's counts and marks, from the match, owned and OWN state as it is now.
 void searchRecompute() {
     if (!g_groups) return;
-    const bool own = g_ownedOnly && g_ownKnown;
+    // Search always respects discovery, independently of the Owned display filter.
+    const bool own = true;
     unsigned marks = 0;
     int found = 0, groups = 0;
     for (size_t gi = 0; gi < g_groups->size(); ++gi) {
         Group& g = (*g_groups)[gi];
         const int n = (int)g.records.size();
-        g.hitCount = g_searchOn ? utSearchCount(g.owned.data(), g.match.data(), n, own) : 0;
+        g.hitCount = g_searchOn && g_ownKnown ? utSearchCount(g.owned.data(), g.match.data(), n, own) : 0;
         if (!g_searchOn) continue;
         found += g.hitCount;
         if (g.hitCount > 0) ++groups;
         const bool indexed = gi < 32 && (g_searchIndexed & (1u << (unsigned)gi)) != 0;
-        if (gi < 32 && utSearchGroupMarked(g.owned.data(), g.match.data(), n, own, indexed))
+        if (g_ownKnown && gi < 32 && utSearchGroupMarked(g.owned.data(), g.match.data(), n, own, indexed))
             marks |= 1u << (unsigned)gi;
     }
     InterlockedExchange(&g_searchMarks, (LONG)marks);
@@ -292,7 +293,8 @@ bool liveSearchHighlight(int i, const char* record) {
         return false;
     const Group& g = (*g_groups)[(size_t)g_shownGroup];
     const int k = utSearchPlaceIndex(g_placeRec, g_placeK, g_placeN, i, record);
-    return utSearchHighlight(g.match.data(), (int)g.match.size(), k, true);
+    return g_ownKnown && k>=0 && k<(int)g.owned.size() && g.owned[(size_t)k] &&
+           utSearchHighlight(g.match.data(), (int)g.match.size(), k, true);
 }
 
 unsigned liveSearchMarks() { return (unsigned)InterlockedCompareExchange(&g_searchMarks, 0, 0); }

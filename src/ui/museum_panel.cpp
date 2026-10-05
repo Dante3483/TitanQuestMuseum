@@ -12,7 +12,7 @@ void MuseumPanel::arrange(Rect caravan,float scale,const MuseumState& state) {
     for (int i=0;i<3;++i) {
         const Section section=static_cast<Section>(i);
         buttons_[buttonCount_++]={rowCell(layout_.sections,3,i,gap),sectionCaption(section),
-            {ActionKind::SelectSection,i},state.activeSection==section};
+            {ActionKind::SelectSection,i},state.activeSection==section,true,state.sectionSearchMatch[i]};
     }
     for (int i=0;i<state.sectionCategoryCount;++i) {
         const auto& c=state.sectionCategories[i];

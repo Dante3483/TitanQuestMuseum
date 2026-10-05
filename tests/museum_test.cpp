@@ -43,6 +43,20 @@ MuseumState fixture(Section section) {
 }
 }
 int main() {
+    {
+        CollectionSnapshot source=fixture(Section::Equipment);
+        source.searchText[0]=L'a';
+        source.categories[0].searchMatch=true;
+        source.categories[6].searchMatch=true;
+        auto state=makeMuseumState(source);
+        check(state.sectionSearchMatch[0] && state.sectionSearchMatch[1] && !state.sectionSearchMatch[2],
+              "search marks all sections containing matching categories");
+        source.searchText[0]=0;
+        state=makeMuseumState(source);
+        check(!state.sectionSearchMatch[0] && !state.sectionSearchMatch[1] && !state.sectionSearchMatch[2],
+              "empty search clears section marks");
+    }
+
     for (int footprint=1; footprint<=5; ++footprint) {
         const gdut::SlotGeometry g={1,footprint,16,15/footprint};
         int end=0;

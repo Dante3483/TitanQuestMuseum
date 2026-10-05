@@ -34,6 +34,7 @@ struct CollectionSnapshot {
     char searchStatus[40] = {};
 };
 struct MuseumState : CollectionSnapshot {
+    bool sectionSearchMatch[3] = {};
     Section activeSection = Section::Equipment;
     Category sectionCategories[maxCategories];
     int sectionCategoryCount = 0;

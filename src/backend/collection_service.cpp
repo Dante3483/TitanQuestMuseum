@@ -35,6 +35,9 @@ MuseumState makeMuseumState(const CollectionSnapshot& source) {
     if (state.visibleCount > maxVisibleItems) state.visibleCount = maxVisibleItems;
     for (int i = 0; i < state.categoryCount; ++i) {
         const auto& c = state.categories[i];
+        const int section=static_cast<int>(c.section);
+        if (source.searchText[0] && c.searchMatch && section>=0 && section<3)
+            state.sectionSearchMatch[section]=true;
         if (c.id == state.selectedCategory) state.activeSection = c.section;
         if (c.id == state.shownCategory) state.shownCategoryName = c.caption;
     }
