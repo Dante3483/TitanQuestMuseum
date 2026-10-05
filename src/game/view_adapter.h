@@ -22,6 +22,7 @@
 #pragma once
 
 #include "game/game_api.h"
+#include "backend/journal.h"
 
 namespace integration {
 
@@ -31,6 +32,10 @@ namespace integration {
 void viewInit(bool hooksOk);
 bool viewAvailable();
 bool viewOn();
+// A live Museum object and its exact current journal row, never a record-only match.
+bool viewCopyIdentity(unsigned id, unsigned long long seq, UtReplicaCapture* out = nullptr);
+void viewQueueCopy(unsigned id, unsigned long long seq);
+void viewCopyTick();
 
 // THE single OFF path: re-points the page's cached member at the real Transfer sack (when it holds
 // the mod sack), destroys every prototype, marks the view OFF. Idempotent; game thread.

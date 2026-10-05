@@ -66,6 +66,8 @@
 #include "core/logging.h"
 #include "backend/ownership_rules.h"
 #include "game/item_adapter.h"
+#include "game/native_surface.h"
+#include "game/view_adapter.h"
 #include "backend/journal.h"
 #include "game/storage_adapter.h"
 
@@ -247,6 +249,7 @@ char g_offWhy[192] = "";
 // destroyed and never freed - one bounded allocation of a few dozen bytes per state, which is not
 // a leak that grows.
 unsigned char g_lineYes[kLineSize];
+unsigned char g_lineCopy[kLineSize];
 unsigned char g_lineNo[kLineSize];
 
 char g_textYes[96] = "";
@@ -433,9 +436,12 @@ struct Latch {
     unsigned int count;
     unsigned int firstClass;
     unsigned int lastClass;
-    int state;  // 0 = none / consumed, 1 = COLLECTED, 2 = NOT COLLECTED
+    int state;  // 0 = consumed, 1 = COLLECTED, 2 = NOT COLLECTED, 3 = copy hint only
     DWORD tick;
     char record[256];
+    const void* copyItem;
+    unsigned copyId;
+    unsigned long long copySeq;
 };
 __declspec(thread) Latch t_latch;
 // Set by the property search around its own GetUIDisplayText call (tooltipSearchCapture).
@@ -449,8 +455,7 @@ const unsigned char* pendingLine(const void* vec) {
     if (!vec) return nullptr;
     if (InterlockedCompareExchange(&g_tooltipOff, 0, 0)) return nullptr;
     if (!InterlockedCompareExchange(&g_linesReady, 0, 0)) return nullptr;
-    if (!g_cfg.tooltipMark) return nullptr;
-    if (t_latch.state != 1 && t_latch.state != 2) return nullptr;
+    if (t_latch.state != 1 && t_latch.state != 2 && t_latch.state != 3) return nullptr;
     const Latch cur = t_latch;   // POD copy
     clearLatch();                // ONE-SHOT: consumed here whether it matches below or not
     if (GetTickCount() - cur.tick > kLatchMaxAgeMs) return nullptr;
@@ -467,6 +472,7 @@ const unsigned char* pendingLine(const void* vec) {
                            prefixRead, atPrefixEnd)) {
         return nullptr;
     }
+    if (cur.state==3) return g_lineCopy;
     return cur.state == 1 ? g_lineYes : g_lineNo;
 }
 
@@ -653,10 +659,6 @@ void latchBody(void* item, void* lines) {
     // clearLatch below), take the journal lock (collectedState) or leave a latch of its own.
     if (t_searchCapture) return;
     if (InterlockedCompareExchange(&g_tooltipOff, 0, 0)) return;
-    if (!g_cfg.tooltipMark) {
-        clearLatch();
-        return;
-    }
     LatchPrep prep;
     prep.record[0] = 0;
     prep.count = 0;
@@ -677,6 +679,15 @@ void latchBody(void* item, void* lines) {
         fresh.firstClass = prep.firstClass;
         fresh.lastClass = prep.lastClass;
         fresh.state = state;
+        panelCopyItem(item,&fresh.copyId,&fresh.copySeq);
+        fresh.copyItem=fresh.copyId?item:nullptr;
+        // A just-deposited row can precede the record memo's next refresh. The exact
+        // Museum instance is stronger evidence and must already show the copy hint.
+        if (fresh.copyId) fresh.state=1;
+        if (!g_cfg.tooltipMark) {
+            if (!fresh.copyId) return;
+            fresh.state=3; // copy hint remains independent of the collection marker option
+        }
         _snprintf_s(fresh.record,sizeof(fresh.record),_TRUNCATE,"%s",prep.record);
         fresh.tick = GetTickCount();
         t_latch = fresh;
@@ -833,38 +844,12 @@ void parseSources(const std::string& text){
     }
     g_sources.swap(parsed);++g_sourceRevision;
 }
-void borrowedSourceLine(SourceLines& entry,size_t index,unsigned cls,const char* text){
-    unsigned char* line=entry.lines.data()+index*kLineSize;memset(line,0,kLineSize);
-    *reinterpret_cast<unsigned*>(line)=cls;
-    MsvcWString wide;makeWide(&wide,text,entry.storage[index-1].data(),512);
-    memcpy(line+4,&wide,sizeof(wide));
-}
-const unsigned char* sourceLines(const char* record,size_t& count) {
-    auto found=g_sources.find(sourceKey(record));if(found==g_sources.end()){
-        auto& entry=g_sourceStatusLines;
-        if(!entry.prepared){entry.prepared=true;entry.count=2;entry.storage.resize(1);memcpy(entry.lines.data(),g_lineNo,kLineSize);
-            borrowedSourceLine(entry,1,0x19,tooltipSourceStatus());}
-        count=entry.count;return entry.lines.data();
-    }
-    SourceLines& entry=found->second;
-    const size_t limit=(GetAsyncKeyState(VK_SHIFT)&0x8000)?10:3;
-    if(!entry.prepared || entry.visibleLimit!=limit) {
-        entry.prepared=true;entry.visibleLimit=limit;entry.count=1;entry.storage.resize(10);memcpy(entry.lines.data(),g_lineNo,kLineSize);
-        for(size_t index=0;index<entry.rows.size() && index<limit;++index) {
-            char text[1024];if(!tooltipSourceRow(record,index,text,sizeof(text)))break;
-            borrowedSourceLine(entry,entry.count,0x19,text);++entry.count;
-        }
-        if(limit==3 && entry.rows.size()>3){
-            borrowedSourceLine(entry,entry.count,0x14,museum::i18n::text("museum.sources.more"));++entry.count;
-        }
-    }
-    count=entry.count;return entry.lines.data();
-}
-
 void __cdecl hk_GameTextLineToString(const void* lines, void* out) {
     const long long t0 = probeNow();   // the match and the swap build, never the engine's
     const unsigned char* extra = nullptr;
-    char sourceRecord[256];memcpy(sourceRecord,t_latch.record,sizeof(sourceRecord));sourceRecord[255]=0;
+    const void* copyItem=t_latch.copyItem;
+    const unsigned copyId=t_latch.copyId;
+    const unsigned long long copySeq=t_latch.copySeq;
     __try {
         extra = pendingLine(lines);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
@@ -882,8 +867,22 @@ void __cdecl hk_GameTextLineToString(const void* lines, void* out) {
     borrowed.end = nullptr;
     borrowed.cap = nullptr;
     size_t extraCount=1;
-    // Collected items keep only their collection marker; sources help find missing items.
-    if(extra==g_lineNo)extra=sourceLines(sourceRecord,extraCount);
+    unsigned char copyLines[2*kLineSize];
+    if (extra==g_lineCopy || (extra==g_lineYes && copyId)) {
+        unsigned currentId=0; unsigned long long currentSeq=0;
+        const bool copy=panelCopyItem(copyItem,&currentId,&currentSeq) &&
+            currentId==copyId && currentSeq==copySeq;
+        if (copy && extra==g_lineYes) {
+            memcpy(copyLines,g_lineYes,kLineSize);
+            memcpy(copyLines+kLineSize,g_lineCopy,kLineSize);
+            extra=copyLines; extraCount=2;
+        } else if (!copy && extra==g_lineCopy) {
+            if(o_ToString) o_ToString(lines,out);
+            return;
+        }
+    }
+    // Real-item tooltips contain collection/copy markers only. Drop sources belong
+    // exclusively to native_surface's unknown Museum silhouette rollover.
     if (!tooltipSwapBuildMany(lines, extra, extraCount, &owned, &borrowed)) {
         probePresentAdd(probeNow() - t0);
         if (o_ToString) o_ToString(lines, out);
@@ -1124,7 +1123,8 @@ bool tooltipInit(HMODULE selfModule) {
                                  "tooltip_class_no");
     const bool okYes = buildLine(g_lineYes, g_classYes, g_textYes);
     const bool okNo = buildLine(g_lineNo, g_classNo, g_textNo);
-    if (!okYes || !okNo) {
+    const bool okCopy=buildLine(g_lineCopy,0x01,museum::i18n::text("museum.tooltip.copy")); // ItemBanner: RGB 153/153/153
+    if (!okYes || !okNo || !okCopy) {
         disable("a prepared GameTextLine did not verify after the engine's ctor ran");
         return false;
     }

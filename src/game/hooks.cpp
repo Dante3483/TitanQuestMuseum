@@ -201,7 +201,7 @@ LRESULT CALLBACK utWndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         searchFieldBlur("the game window lost the keyboard focus (WM_KILLFOCUS)");
     else if (msg == WM_ACTIVATEAPP && !wp)
         searchFieldBlur("another application was activated (WM_ACTIVATEAPP)");
-    if ((msg >= WM_LBUTTONDOWN && msg <= WM_RBUTTONDBLCLK) || msg == WM_MOUSEWHEEL ||
+    if ((msg >= WM_LBUTTONDOWN && msg <= WM_MBUTTONDBLCLK) || msg == WM_MOUSEWHEEL ||
         msg == WM_KEYDOWN || msg == WM_CANCELMODE || msg == WM_KILLFOCUS || msg == WM_CAPTURECHANGED) {
         bool mine = false;
         __try {

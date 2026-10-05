@@ -17,6 +17,7 @@ void panelForgetFonts();
 void panelGrayPrepare(bool noWorldYet);
 
 bool panelCursorNow(float* x, float* y);
+bool panelCopyItem(const void* item, unsigned* id, unsigned long long* seq);
 
 void panelNoteHover(float originX, float originY, float gridX, float gridY, unsigned cellW,
                     unsigned cellH);

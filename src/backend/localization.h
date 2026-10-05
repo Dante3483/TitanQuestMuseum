@@ -40,6 +40,7 @@ inline std::map<std::string,std::string>& messages() {
 {"museum.category.scroll","Scrolls"},
 {"museum.tooltip.collected","In your collection"},
 {"museum.tooltip.not_collected","Not in your collection"},
+{"museum.tooltip.copy","Press the middle mouse button to create a copy"},
 {"museum.sources.details","%s · %s · lv. %d"},
 {"museum.sources.more","Hold Shift for more sources"},
 {"museum.sources.loading","Calculating drop chances..."},

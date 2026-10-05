@@ -611,6 +611,24 @@ bool panelCursorNow(float* x, float* y) {
     return true;
 }
 
+bool panelCopyItem(const void* item, unsigned* id, unsigned long long* seq) {
+    if (!item || !viewOn() || museum::game::setsBrowseActive() || !plateTransferVisible() ||
+        !g_groundOk || protoPlacedCellStale()) return false;
+    UtRectF grid; float x=0,y=0;
+    if (!panelFrameGrid(&grid) || !panelCursorNow(&x,&y)) return false;
+    for (int i=0;i<protoCount();++i) {
+        if (protoItem(i)!=item) continue;
+        int col=0,row=0,w=0,h=0; unsigned liveId=0; unsigned long long liveSeq=0;
+        if (!protoSlotAt(i,&col,&row,&w,&h) || !protoAt(i,nullptr,nullptr,nullptr,&liveId) ||
+            !protoAtSeq(i,&liveSeq) || !utRectHas(visualSlotRect(grid,col,row,w,h),x,y) ||
+            !viewCopyIdentity(liveId,liveSeq)) return false;
+        if (id) *id=liveId;
+        if (seq) *seq=liveSeq;
+        return true;
+    }
+    return false;
+}
+
 // The LIVE frame, decided once per window geometry from the
 // first proven hover (ut_padlayout.h utFrameFromHover: parent origin - the page's record place;
 // the measured grid must lie inside; the frame inside the canvas).
@@ -982,6 +1000,24 @@ bool panelInput(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     const bool padLive = g_cfg.groupButtons && !InterlockedCompareExchange(&g_padOff, 0, 0) &&
                          GetTickCount() - g_drawnAt < 500;
     switch (msg) {
+    case WM_MBUTTONDOWN:
+    case WM_MBUTTONDBLCLK:
+    case WM_MBUTTONUP: {
+        if (!g_perClientOk || !viewOn() || museum::game::setsBrowseActive()) return false;
+        UtRectF grid;
+        if (!panelFrameGrid(&grid) || !g_groundOk) return false;
+        const float x=(float)(short)LOWORD(lp)*g_canvasPerClientX;
+        const float y=(float)(short)HIWORD(lp)*g_canvasPerClientY;
+        for (int i=0;i<protoCount();++i) {
+            int col=0,row=0,w=0,h=0; unsigned id=0; unsigned long long seq=0;
+            if (!protoSlotAt(i,&col,&row,&w,&h) || !protoAt(i,nullptr,nullptr,nullptr,&id) ||
+                !protoAtSeq(i,&seq)) continue;
+            if (!utRectHas(visualSlotRect(grid,col,row,w,h),x,y) || !viewCopyIdentity(id,seq)) continue;
+            if (msg!=WM_MBUTTONUP) viewQueueCopy(id,seq);
+            return true;
+        }
+        return false;
+    }
     case WM_LBUTTONDOWN:
     case WM_LBUTTONUP:
     case WM_LBUTTONDBLCLK:

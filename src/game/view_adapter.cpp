@@ -489,6 +489,7 @@ void viewTick() {
     // RemoveItemFromTransfer never came: the prototype leaves the mod sack now (it is on the
     // cursor), so it is never in two places and never destroyed by the next rebuild.
     viewTakeTick();
+    viewCopyTick();
     // Navigation: rebuild the page's prototypes (the member keeps pointing at the mod sack).
     // no settle - at most one rebuild per Update, every input since the last one in it
     // a UI scale change re-cells the mod sack (InventorySack::OnUIScaleChange): the window
@@ -1308,6 +1309,186 @@ int takeDecideFor(unsigned id, const char** record, unsigned long long* seq) {
 }  // namespace
 
 // the take verdict's name for the right-click trace (utTakeDecide, ut_depositgate.h)
+bool viewCopyIdentity(unsigned id, unsigned long long seq, UtReplicaCapture* out) {
+    if (!id || !seq || !viewOn() || !storeTakeAllowed() || protoPlacedCellStale() ||
+        g_takeId || g_takeArmedId || g_holdId || !rightClickOnTransferPage(protoSackBuilt())) return false;
+    bool known=false;
+    const bool mp=isMultiplayer(&known);
+    if (!utMpMovesAllowed(known,mp,g_cfg.mpCollect!=0) || !protoStackReadable()) return false;
+    const char* record=nullptr; unsigned long long liveSeq=0,newest=0; char key[256];
+    return protoLookup(id,&record,&liveSeq) && liveSeq==seq && record &&
+        utJournalKey(record,key,sizeof(key)) && journalNewest(key,out,&newest) && newest==seq;
+}
+
+namespace {
+struct CopyRequest { unsigned id=0, generation=0, world=0; unsigned long long seq=0; };
+CopyRequest g_copyRequest;
+
+bool copySame(const UtReplicaCapture& a,const UtReplicaCapture& b) {
+    return utReplicaSame(a,b) && a.b8==b.b8 && a.stack==b.stack;
+}
+
+// The game's normal item-placement sound, once after confirmed copy insertion.
+// Sound is optional feedback: a missing export or audio fault cannot undo a copy.
+void copyPlaySound(TqItem* item) {
+    typedef void(__thiscall* PlaySound)(TqItem*);
+    const HMODULE game=GetModuleHandleA("Game.dll");
+    const auto play=game?reinterpret_cast<PlaySound>(
+        GetProcAddress(game,"?PlayDropSound@Item@GAME@@UAEXXZ")):nullptr;
+    if(!item || !play) return;
+    utGuardEnter();
+    __try { play(item); }
+    __except(EXCEPTION_EXECUTE_HANDLER) { }
+    utGuardLeave();
+}
+
+// Engine exports, not fixed addresses. Decoded AE 2.10: AddItemToSack calls
+// Sack::AddItem(item,true), then item-skill registration; no stacking or ground fallback.
+typedef bool(__thiscall* CopyAddToSack)(void*,TqItem*,int);
+typedef bool(__thiscall* CopyRemoveFromSacks)(void*,unsigned,TqU32Vector*);
+typedef void*(__thiscall* CopyGetInventory)(void*);
+typedef void(__thiscall* CopyInventoryAdd)(void*,unsigned,Bool32);
+typedef void(__thiscall* CopyInventoryRemove)(void*,unsigned);
+typedef void(__thiscall* CopySetPhysics)(void*,int);
+typedef void(__thiscall* CopyNotifySack)(void*,Bool32,int);
+
+struct CopyEngine {
+    CopyAddToSack add=nullptr;
+    CopyRemoveFromSacks remove=nullptr;
+    CopyGetInventory inventory=nullptr;
+    CopyInventoryAdd own=nullptr;
+    CopyInventoryRemove disown=nullptr;
+    CopySetPhysics physics=nullptr;
+    CopyNotifySack notify=nullptr;
+};
+CopyEngine copyEngine() {
+    CopyEngine e;
+    HMODULE game=GetModuleHandleA("Game.dll"),engineModule=GetModuleHandleA("Engine.dll");
+    if (!game || !engineModule) return e;
+    e.add=reinterpret_cast<CopyAddToSack>(GetProcAddress(game,"?AddItemToSack@PlayerInventoryCtrl@GAME@@AAE_NPAVItem@2@H@Z"));
+    e.remove=reinterpret_cast<CopyRemoveFromSacks>(GetProcAddress(game,"?RemoveItem@PlayerInventoryCtrl@GAME@@QAE_NIAAV?$vector@IV?$allocator@I@std@@@std@@@Z"));
+    e.inventory=reinterpret_cast<CopyGetInventory>(GetProcAddress(game,"?GetInventory@Character@GAME@@QAEAAVInventory@2@XZ"));
+    e.own=reinterpret_cast<CopyInventoryAdd>(GetProcAddress(game,"?AddItemToInventory@Inventory@GAME@@QAEXI_N@Z"));
+    e.disown=reinterpret_cast<CopyInventoryRemove>(GetProcAddress(game,"?RemoveItemFromInventory@Inventory@GAME@@QAEXI@Z"));
+    e.physics=reinterpret_cast<CopySetPhysics>(GetProcAddress(engineModule,"?SetPhysicsType@Entity@GAME@@QAEXW4PhysicsType@2@@Z"));
+    e.notify=reinterpret_cast<CopyNotifySack>(GetProcAddress(game,"?SetItemAddedWhileNotTheCurrentlySelectedInventoryTab@PlayerInventoryCtrl@GAME@@QAEX_NH@Z"));
+    return e;
+}
+
+// Resolve and check every player sack before creating anything. Rechecked for the actual
+// reconstructed object in copyPlace. No journal locks inside engine SEH frames.
+bool copyPlayer(void** inventory,void** invCtrl,TqSack** sacks,unsigned* count) {
+    TqGameEngine* ge=gameEngine();
+    if (!ge || !g_tq.GameGetMainPlayer || !g_tq.CharGetControllerId || !g_tq.CtrlGetInventoryCtrl ||
+        !g_tq.InvCtrlGetNumberOfSacks || !g_tq.InvCtrlGetSack || !g_tq.SackIsSpaceForItem ||
+        !g_tq.SackContainsItem || !g_tq.SackRemoveItem) return false;
+    const CopyEngine e=copyEngine();
+    if (!e.add || !e.remove || !e.inventory || !e.own || !e.disown || !e.physics || !e.notify ||
+        !g_tq.CrtOperatorDelete) return false;
+    const void* player=nullptr; unsigned ctrlId=0;
+    utGuardEnter();
+    __try { player=g_tq.GameGetMainPlayer(ge); if(player) ctrlId=g_tq.CharGetControllerId(player); }
+    __except(EXCEPTION_EXECUTE_HANDLER) { ctrlId=0; }
+    utGuardLeave();
+    const void* ctrl=nullptr; const void* ignored=nullptr;
+    if (!ctrlId || !protoFindObjects(0,ctrlId,&ignored,&ctrl) || !ctrl) return false;
+    bool ok=false;
+    utGuardEnter();
+    __try {
+        *inventory=e.inventory(const_cast<void*>(player));
+        *invCtrl=g_tq.CtrlGetInventoryCtrl(const_cast<void*>(ctrl));
+        *count=*invCtrl?g_tq.InvCtrlGetNumberOfSacks(*invCtrl):0;
+        if (*inventory && *invCtrl && *count>=1 && *count<=16) {
+            ok=true;
+            for (unsigned i=0;i<*count;++i) {
+                sacks[i]=g_tq.InvCtrlGetSack(*invCtrl,(int)i);
+                if (!sacks[i] || protoIsModSack(sacks[i])) ok=false;
+            }
+        }
+    } __except(EXCEPTION_EXECUTE_HANDLER) { ok=false; }
+    utGuardLeave(); return ok;
+}
+
+bool copyPlace(TqItem* item,unsigned id,void* inventory,void* invCtrl,TqSack** sacks,unsigned n) {
+    const CopyEngine e=copyEngine();
+    bool placed=false,owned=false; int target=-1;
+    utGuardEnter();
+    __try {
+        for (unsigned i=0;i<n && target<0;++i)
+            if(g_tq.SackIsSpaceForItem(sacks[i],item)) target=(int)i;
+        if(target>=0) {
+            owned=true; // also roll back a partially completed Inventory::AddItem
+            e.own(inventory,id,0);
+            e.physics(item,2); // Player::GiveItemToCharacter uses PhysicsType 2 for inventory items
+            placed=e.add(invCtrl,item,target) && g_tq.SackContainsItem(sacks[target],id);
+            if(placed) e.notify(invCtrl,1,target);
+        }
+    } __except(EXCEPTION_EXECUTE_HANDLER) { placed=false; }
+    utGuardLeave();
+    if(placed) return true;
+    // Only the new id is removed. The original prototype and journal row are never touched.
+    bool clean=true;
+    TqU32Vector removed={nullptr,nullptr,nullptr};
+    utGuardEnter();
+    __try {
+        // Reverse item-skill registration too; direct Sack::RemoveItem alone is insufficient.
+        if(target>=0 && g_tq.SackContainsItem(sacks[target],id)) e.remove(invCtrl,id,&removed);
+        if(removed.first) g_tq.CrtOperatorDelete(const_cast<unsigned*>(removed.first));
+    } __except(EXCEPTION_EXECUTE_HANDLER) { clean=false; }
+    utGuardLeave();
+    for(unsigned i=0;i<n;++i) {
+        utGuardEnter();
+        __try {
+            if(g_tq.SackContainsItem(sacks[i],id)) g_tq.SackRemoveItem(sacks[i],id);
+            if(g_tq.SackContainsItem(sacks[i],id)) clean=false;
+        } __except(EXCEPTION_EXECUTE_HANDLER) { clean=false; }
+        utGuardLeave();
+    }
+    utGuardEnter();
+    __try {
+        if(owned) e.disown(inventory,id);
+    } __except(EXCEPTION_EXECUTE_HANDLER) { clean=false; }
+    utGuardLeave();
+    // Loose copies are never prototypes and never acquire a journal row.
+    const bool destroyed=protoDestroyLoose(item);
+    if(!clean || !destroyed) logE("copy: rollback failed for new id %u; engine state requires inspection",id);
+    return false;
+}
+} // namespace
+
+void viewQueueCopy(unsigned id,unsigned long long seq) {
+    if(g_copyRequest.id || !viewCopyIdentity(id,seq)) return;
+    g_copyRequest={id,protoGeneration(),viewWorldGeneration(),seq};
+}
+
+void viewCopyTick() {
+    const CopyRequest request=g_copyRequest; g_copyRequest={};
+    if(!request.id || request.generation!=protoGeneration() || request.world!=viewWorldGeneration()) return;
+    UtReplicaCapture row={};
+    if(!viewCopyIdentity(request.id,request.seq,&row) || row.stack!=1) return;
+    UtReplica replica;
+    if(!utReplicaFromIdentity(&replica,row)) return;
+    void* inventory=nullptr; void* invCtrl=nullptr; TqSack* sacks[16]={}; unsigned n=0;
+    if(!copyPlayer(&inventory,&invCtrl,sacks,&n)) { logW("copy: inventory placement unavailable"); return; }
+    int asked=0;
+    if(inventoryRoomFor(request.id,&asked,false,nullptr)!=1) { playInventoryFullSound(); return; }
+    unsigned id=0; const char* fault=nullptr;
+    TqItem* item=protoCreateLoose(replica,&id,&fault);
+    UtReplicaCapture restored={}; char name[256]={}; unsigned stack=0;
+    if(!item || !id || fault || !protoCapture(item,&restored,name,sizeof(name),&stack) ||
+        !copySame(row,restored) || !utStackIsSingle(stack)) {
+        if(item) protoDestroyLoose(item);
+        logW("copy: reconstruction refused for row %llu (replica fields must match exactly)",request.seq);
+        return;
+    }
+    if(copyPlace(item,id,inventory,invCtrl,sacks,n)) {
+        copyPlaySound(item);
+        ownedMarkDirty();
+        logI("copy: row %llu seed %u restored as inventory id %u; Museum id %u unchanged",
+            request.seq,row.seed,id,request.id);
+    } else logW("copy: placement refused for row %llu; Museum unchanged",request.seq);
+}
+
 static const char* takeVerdictName(int v) {
     switch (v) {
     case kUtTakeOk: return "kUtTakeOk";

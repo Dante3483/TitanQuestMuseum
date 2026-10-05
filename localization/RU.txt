@@ -34,6 +34,7 @@ museum.category.charm=Амулеты
 museum.category.scroll=Свитки
 museum.tooltip.collected=Есть в коллекции
 museum.tooltip.not_collected=Нет в коллекции
+museum.tooltip.copy=Нажмите колёсико мыши — создать копию
 
 museum.source.loot=добыча
 museum.source.equipment=экипировка
