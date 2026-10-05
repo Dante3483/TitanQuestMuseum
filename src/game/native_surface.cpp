@@ -4,6 +4,8 @@
 // Windows messages into controller actions; original wheel and game hook safety gates remain.
 #include "game/native_surface.h"
 #include "game/native_renderer.h"
+#include "game/tooltip_adapter.h"
+#include "backend/localization.h"
 #include "game/collection_bridge.h"
 #include "features/museum_controller.h"
 #include "ui/museum_panel.h"
@@ -359,12 +361,13 @@ void drawSearchMarks(TqCanvas* c, bool frame) {
         if (frame) drawRealSearchMarks(c);
         return;
     }
-    if (!(g_cfg.searchMark & (frame ? 1 : 2)) || !searchQueryStands()) return;
+    if (!g_cfg.searchMark || !searchQueryStands()) return;
     UtRectF gr;
     if (!panelSlotGrid(&gr)) return;   // not on a grid the items do not share
     const float cell = gr.w / (float)kUtPadGridCols;
-    const float t = utSearchMarkThick(cell);
-    const TqColor col = searchMarkColour(!frame);
+    const float t = (std::max)(1.0f,utPadRound(2.0f*cell/32.0f));
+    // Match the marked set cards: blue fill with a bright two-pixel edge.
+    const TqColor col = frame ? TqColor{0.38f,0.79f,1.0f,1.0f} : TqColor{0.15f,0.30f,0.40f,1.0f};
     const int n = protoCount();
     for (int i = 0; i < n; ++i) {
         const char* rec = nullptr;
@@ -424,8 +427,8 @@ void drawUnknownRollover(TqCanvas* canvas) {
     UtRectF grid;
     if (!panelFrameGrid(&grid)) return;
     for (int i=0;i<protoCount();++i) {
-        int col=0,row=0,w=0,h=0; unsigned id=0;
-        if (!protoSlotAt(i,&col,&row,&w,&h) || !protoAt(i,nullptr,nullptr,nullptr,&id)) continue;
+        int col=0,row=0,w=0,h=0; unsigned id=0;const char* record=nullptr;
+        if (!protoSlotAt(i,&col,&row,&w,&h) || !protoAt(i,&record,nullptr,nullptr,&id)) continue;
         const UtRectF slot=visualSlotRect(grid,col,row,w,h);
         if (g_cursorX<slot.x || g_cursorX>=slot.x+slot.w ||
             g_cursorY<slot.y || g_cursorY>=slot.y+slot.h) continue;
@@ -440,13 +443,61 @@ void drawUnknownRollover(TqCanvas* canvas) {
         ensureFont();
         museum::game::NativeRenderer renderer(canvas,g_font);
         const float scale=grid.w/(16.0f*32.0f);
-        const float width=70.0f*scale,height=32.0f*scale;
-        float x=g_cursorX+16.0f*scale,y=g_cursorY+18.0f*scale;
-        if (x+width>g_geo.canvasW) x=g_cursorX-width-8.0f*scale;
-        if (y+height>g_geo.canvasH) y=g_cursorY-height-8.0f*scale;
+        struct SourceDisplay { std::wstring name,details,chance; };
+        std::vector<SourceDisplay> sources;
+        auto wide=[](const char* text) {
+            wchar_t buffer[1024]={};
+            if(!MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,text,-1,buffer,1024))return std::wstring();
+            return std::wstring(buffer);
+        };
+        const bool expanded=(GetAsyncKeyState(VK_SHIFT)&0x8000)!=0;
+        TooltipSourceText parts;
+        for(size_t n=0;n<size_t(expanded?10:3) && tooltipSourceText(record,n,parts);++n)
+            sources.push_back({wide(parts.name),wide(parts.details),wide(parts.chance)});
+        const bool showMore=!expanded && tooltipSourceText(record,3,parts);
+        const auto hint=showMore?wide(museum::i18n::text("museum.sources.more")):std::wstring();
+        const auto status=sources.empty()?wide(tooltipSourceStatus()):std::wstring();
+        const float padding=12*scale,titleHeight=36*scale,footer=showMore?30*scale:0;
+        const float rowHeight=(std::min)(44*scale,(g_geo.canvasH-2*padding-titleHeight-footer-padding)/float((std::max)(size_t(1),sources.size())));
+        const int fontSize=int((std::min)(14*scale,rowHeight*0.34f));
+        const int detailSize=int((std::min)(12*scale,rowHeight*0.30f));
+        float width=70*scale;
+        for(const auto& source:sources){
+            width=(std::max)(width,renderer.measure(source.name.c_str(),fontSize)+2*padding);
+            width=(std::max)(width,renderer.measure(source.details.c_str(),detailSize)+renderer.measure(source.chance.c_str(),fontSize)+3*padding);
+        }
+        if(showMore)width=(std::max)(width,renderer.measure(hint.c_str(),detailSize)+2*padding);
+        if(sources.empty())width=(std::max)(width,renderer.measure(status.c_str(),fontSize)+2*padding);
+        width=(std::min)(width,g_geo.canvasW-2*padding);
+        const float rowsBottom=titleHeight+(sources.empty()?24*scale:float(sources.size())*rowHeight);
+        const float height=rowsBottom+padding+footer;
+        float x=g_cursorX+16*scale,y=g_cursorY+18*scale;
+        if(x+width>g_geo.canvasW-padding)x=g_cursorX-width-8*scale;
+        if(y+height>g_geo.canvasH-padding)y=g_cursorY-height-8*scale;
+        x=(std::max)(padding,x);y=(std::max)(padding,y);
         renderer.fill({x,y,width,height},{0.06f,0.05f,0.03f,0.96f});
-        renderer.text({x,y,width,height},L"???",(int)(16.0f*scale),
-                      {color.r,color.g,color.b,1.0f},museum::ui::TextAlign::Center);
+        const museum::ui::Color edge={0.40f,0.34f,0.21f,1};
+        renderer.outline({x,y,width,height},edge,scale);
+        renderer.fill({x+padding,y+titleHeight-4*scale,width-2*padding,scale},edge);
+        renderer.text({x,y,width,titleHeight},L"???",int(16*scale),
+                      {color.r,color.g,color.b,1},museum::ui::TextAlign::Center);
+        if(sources.empty())renderer.text({x+padding,y+titleHeight,width-2*padding,24*scale},status.c_str(),fontSize,
+                                        {0.65f,0.63f,0.58f,1},museum::ui::TextAlign::Left);
+        for(size_t n=0;n<sources.size();++n){
+            const auto& source=sources[n];const float top=y+titleHeight+float(n)*rowHeight;
+            renderer.text({x+padding,top,width-2*padding,rowHeight*0.5f},source.name.c_str(),fontSize,
+                          {0.90f,0.87f,0.78f,1},museum::ui::TextAlign::Left);
+            const float chanceWidth=renderer.measure(source.chance.c_str(),fontSize)+scale;
+            renderer.text({x+padding,top+rowHeight*0.48f,width-3*padding-chanceWidth,rowHeight*0.45f},source.details.c_str(),detailSize,
+                          {0.61f,0.60f,0.55f,1},museum::ui::TextAlign::Left);
+            renderer.text({x+width-padding-chanceWidth,top+rowHeight*0.48f,chanceWidth,rowHeight*0.45f},source.chance.c_str(),fontSize,
+                          {0.95f,0.77f,0.35f,1},museum::ui::TextAlign::Right);
+        }
+        if(showMore){
+            renderer.fill({x+padding,y+rowsBottom+4*scale,width-2*padding,scale},edge);
+            renderer.text({x+padding,y+rowsBottom+9*scale,width-2*padding,22*scale},hint.c_str(),detailSize,
+                          {0.60f,0.58f,0.52f,1},museum::ui::TextAlign::Left);
+        }
         return;
     }
 }

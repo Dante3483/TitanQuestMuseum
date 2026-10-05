@@ -41,6 +41,17 @@
 #include "game/tooltip_adapter.h"
 
 #include <windows.h>
+#include <array>
+#include <vector>
+#include <map>
+#include <string>
+#include <fstream>
+#include <sstream>
+#include <cmath>
+#include <mutex>
+#include <algorithm>
+#include "game/archive/loot_sources.h"
+#include "core/paths.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -424,6 +435,7 @@ struct Latch {
     unsigned int lastClass;
     int state;  // 0 = none / consumed, 1 = COLLECTED, 2 = NOT COLLECTED
     DWORD tick;
+    char record[256];
 };
 __declspec(thread) Latch t_latch;
 // Set by the property search around its own GetUIDisplayText call (tooltipSearchCapture).
@@ -485,10 +497,10 @@ int tooltipLatchMatch(unsigned latchCount, unsigned latchFirst, unsigned latchLa
 // code the game drives. Builds an array of N+1 GameTextLine records: the engine's N copied byte
 // for byte, then `extraLine`. Returns false - and allocates nothing - for any vector whose shape
 // is not a plausible tooltip.
-bool tooltipSwapBuild(const void* vec, const unsigned char* extraLine, unsigned char** ownedOut,
+static bool tooltipSwapBuildMany(const void* vec, const unsigned char* extraLine, size_t extraCount, unsigned char** ownedOut,
                       UtTooltipSwap* out) {
     if (ownedOut) *ownedOut = nullptr;
-    if (!vec || !extraLine || !ownedOut || !out) return false;
+    if (!vec || !extraLine || !ownedOut || !out || extraCount<1 || extraCount>11) return false;
     const unsigned char* begin = nullptr;
     const unsigned char* end = nullptr;
     utGuardEnter();
@@ -508,7 +520,7 @@ bool tooltipSwapBuild(const void* vec, const unsigned char* extraLine, unsigned 
         InterlockedIncrement(&g_refusedShape);
         return false;
     }
-    unsigned char* buf = (unsigned char*)malloc((n + 1) * kLineSize);
+    unsigned char* buf = (unsigned char*)malloc((n + extraCount) * kLineSize);
     if (!buf) return false;
     utGuardEnter();
     const bool copied = copyLinesSeh(buf, begin, bytes);
@@ -517,13 +529,17 @@ bool tooltipSwapBuild(const void* vec, const unsigned char* extraLine, unsigned 
         free(buf);
         return false;
     }
-    memcpy(buf + bytes, extraLine, kLineSize);
+    memcpy(buf + bytes, extraLine, extraCount*kLineSize);
     out->begin = buf;
-    out->end = buf + bytes + kLineSize;
+    out->end = buf + bytes + extraCount*kLineSize;
     out->cap = out->end;
     *ownedOut = buf;
     InterlockedIncrement(&g_allocBalance);
     return true;
+}
+
+bool tooltipSwapBuild(const void* vec,const unsigned char* extraLine,unsigned char** ownedOut,UtTooltipSwap* out) {
+    return tooltipSwapBuildMany(vec,extraLine,1,ownedOut,out);
 }
 
 void tooltipSwapFree(unsigned char* owned) {
@@ -656,11 +672,12 @@ void latchBody(void* item, void* lines) {
     try {
         const int state = collectedState(prep.record, nullptr);   // the journal lock, <= 4 Hz/record
         if (state != 1 && state != 2) return;                     // not a catalogue record: no line
-        Latch fresh;
+        Latch fresh = {};
         fresh.count = prep.count;
         fresh.firstClass = prep.firstClass;
         fresh.lastClass = prep.lastClass;
         fresh.state = state;
+        _snprintf_s(fresh.record,sizeof(fresh.record),_TRUNCATE,"%s",prep.record);
         fresh.tick = GetTickCount();
         t_latch = fresh;
         InterlockedIncrement(&g_latches);
@@ -721,9 +738,133 @@ void __fastcall hk_RelicGetUIDisplayText(void* item, void* /*edx*/, const void* 
 
 // No C++ object and no swallowing frame lives in this function: the `__finally` is CLEANUP, so an
 // engine C++ exception out of the trampoline keeps unwinding to the engine's own handler.
+bool buildLine(unsigned char*,unsigned int,const char*);
+struct SourceRow { int kind=0,difficulty=0,level=0;double probability=0;std::string name; };
+struct SourceLines {
+    std::vector<SourceRow> rows;
+    std::array<unsigned char,11*kLineSize> lines{};
+    std::vector<std::array<unsigned short,512>> storage;
+    size_t count=0,visibleLimit=0;bool prepared=false;
+};
+std::map<std::string,SourceLines> g_sources;
+SourceLines g_sourceStatusLines;
+unsigned g_sourceRevision=0;
+std::string sourceKey(const char* record) {
+    std::string key=record?record:"";for(char& c:key){if(c=='\\')c='/';if(c>='A'&&c<='Z')c+=32;}return key;
+}
+
+void makeWide(MsvcWString*,const char*,unsigned short*,size_t);
+struct SourceWorker {
+    std::mutex mutex;
+    HANDLE event=nullptr;
+    std::string modelPath,result;
+    gen::LootContext wanted,ready;
+    bool pending=false,completed=false,failed=false;
+};
+SourceWorker* g_sourceWorker=nullptr; // process lifetime, like the installed hooks
+bool g_sourceContextValid=false,g_sourceReady=false;
+gen::LootContext g_sourceContext;
+using PfnPlayerInfo=void(__thiscall*)(TqGameEngine*,unsigned*);
+using PfnCharLevel=unsigned(__thiscall*)(const TqPlayer*);
+PfnPlayerInfo p_PlayerInfo=nullptr;
+PfnCharLevel p_CharLevel=nullptr;
+DWORD WINAPI sourceWorkerProc(void* arg){
+    auto* state=static_cast<SourceWorker*>(arg);
+    try {
+        gen::LootSourceModel model;std::string error;
+        if(!model.load(state->modelPath,&error)){std::lock_guard<std::mutex> lock(state->mutex);state->failed=true;logW("loot context: %s",error.c_str());return 0;}
+        std::vector<std::pair<gen::LootContext,std::string>> cache;
+        for(;;){
+            if(WaitForSingleObject(state->event,INFINITE)!=WAIT_OBJECT_0)return 0;
+            gen::LootContext context;
+            {std::lock_guard<std::mutex> lock(state->mutex);if(!state->pending)continue;context=state->wanted;state->pending=false;}
+            std::string result;auto found=std::find_if(cache.begin(),cache.end(),[&](const auto& v){return v.first==context;});
+            if(found!=cache.end())result=found->second;
+            else {
+                const DWORD start=GetTickCount();
+                if(!model.calculate(context,result,&error)){std::lock_guard<std::mutex> lock(state->mutex);state->failed=true;return 0;}
+                if(cache.size()>=4)cache.erase(cache.begin());cache.emplace_back(context,result);
+                logI("loot context: player %d, party %d, difficulty %d calculated in %lu ms",context.averageLevel,context.players,context.difficulty,GetTickCount()-start);
+            }
+            {std::lock_guard<std::mutex> lock(state->mutex);state->ready=context;state->result=std::move(result);state->completed=true;}
+        }
+    } catch(...) {std::lock_guard<std::mutex> lock(state->mutex);state->failed=true;logW("loot context: calculation unavailable");}
+    return 0;
+}
+void loadSources(HMODULE module){
+    // Never load the old reference-level percentages into the live UI.
+    char path[MAX_PATH];if(!utModFile(module,"loot-model.bin",path,sizeof(path)))return;
+    HMODULE game=GetModuleHandleA("Game.dll");
+    p_PlayerInfo=reinterpret_cast<PfnPlayerInfo>(GetProcAddress(game,"?GetPlayerInfo@GameEngine@GAME@@QBEXAAUPlayerInfo@2@@Z"));
+    p_CharLevel=reinterpret_cast<PfnCharLevel>(GetProcAddress(game,"?GetCharLevel@Character@GAME@@QBE?BIXZ"));
+    if(!p_PlayerInfo||!p_CharLevel)return;
+    auto* state=new SourceWorker;state->modelPath=path;state->event=CreateEventA(nullptr,FALSE,FALSE,nullptr);
+    if(!state->event){delete state;return;}
+    HANDLE thread=CreateThread(nullptr,0,sourceWorkerProc,state,0,nullptr);
+    if(!thread){CloseHandle(state->event);delete state;return;}
+    CloseHandle(thread);g_sourceWorker=state;
+}
+bool readSourceContext(gen::LootContext* out){
+    if(!out||!p_PlayerInfo||!p_CharLevel||!g_tq.GameGetMainPlayer)return false;
+    bool ok=false;unsigned info[5]={};utGuardEnter();
+    __try {
+        TqGameEngine* ge=gameEngine();TqEngine* e=engine();const TqPlayer* player=ge?g_tq.GameGetMainPlayer(ge):nullptr;
+        if(player&&e&&(!g_tq.EngineHasLoadedCustomDatabase||!g_tq.EngineHasLoadedCustomDatabase(e))){const unsigned ownLevel=p_CharLevel(player);
+            if(ownLevel>=1&&ownLevel<=120){p_PlayerInfo(ge,info);ok=true;}}
+    } __except(EXCEPTION_EXECUTE_HANDLER){ok=false;}
+    utGuardLeave();if(!ok)return false;
+    *out={int(info[0]),int(info[1]),int(info[2]),int(info[3]),int(info[4])};return out->valid();
+}
+void parseSources(const std::string& text){
+    std::map<std::string,SourceLines> parsed;std::istringstream file(text);std::string line;
+    if(!std::getline(file,line))return;if(!line.empty()&&line.back()=='\r')line.pop_back();if(line!="TQMSOURCES 2")return;
+    while(std::getline(file,line)){
+        if(line.size()>2048)continue;if(!line.empty()&&line.back()=='\r')line.pop_back();
+        std::istringstream input(line);std::string record,kind,diff,level,prob,name;
+        if(!std::getline(input,record,'\t')||!std::getline(input,kind,'\t')||!std::getline(input,diff,'\t')
+            ||!std::getline(input,level,'\t')||!std::getline(input,prob,'\t')||!std::getline(input,name))continue;
+        SourceRow row;char extra;
+        if(sscanf_s(kind.c_str(),"%d%c",&row.kind,&extra,1)!=1||sscanf_s(diff.c_str(),"%d%c",&row.difficulty,&extra,1)!=1
+           ||sscanf_s(level.c_str(),"%d%c",&row.level,&extra,1)!=1||sscanf_s(prob.c_str(),"%lf%c",&row.probability,&extra,1)!=1)continue;
+        if(row.kind<0||row.kind>2||row.difficulty!=g_sourceContext.difficulty||row.level<1||row.level>120
+            ||!std::isfinite(row.probability)||row.probability<=0||row.probability>1||name.empty()||name.size()>512)continue;
+        if(parsed.size()>=4096&&!parsed.count(sourceKey(record.c_str())))break;
+        auto& entry=parsed[sourceKey(record.c_str())];if(entry.rows.size()<10){row.name=name;entry.rows.push_back(row);}
+    }
+    g_sources.swap(parsed);++g_sourceRevision;
+}
+void borrowedSourceLine(SourceLines& entry,size_t index,unsigned cls,const char* text){
+    unsigned char* line=entry.lines.data()+index*kLineSize;memset(line,0,kLineSize);
+    *reinterpret_cast<unsigned*>(line)=cls;
+    MsvcWString wide;makeWide(&wide,text,entry.storage[index-1].data(),512);
+    memcpy(line+4,&wide,sizeof(wide));
+}
+const unsigned char* sourceLines(const char* record,size_t& count) {
+    auto found=g_sources.find(sourceKey(record));if(found==g_sources.end()){
+        auto& entry=g_sourceStatusLines;
+        if(!entry.prepared){entry.prepared=true;entry.count=2;entry.storage.resize(1);memcpy(entry.lines.data(),g_lineYes,kLineSize);
+            borrowedSourceLine(entry,1,0x19,tooltipSourceStatus());}
+        count=entry.count;return entry.lines.data();
+    }
+    SourceLines& entry=found->second;
+    const size_t limit=(GetAsyncKeyState(VK_SHIFT)&0x8000)?10:3;
+    if(!entry.prepared || entry.visibleLimit!=limit) {
+        entry.prepared=true;entry.visibleLimit=limit;entry.count=1;entry.storage.resize(10);memcpy(entry.lines.data(),g_lineYes,kLineSize);
+        for(size_t index=0;index<entry.rows.size() && index<limit;++index) {
+            char text[1024];if(!tooltipSourceRow(record,index,text,sizeof(text)))break;
+            borrowedSourceLine(entry,entry.count,0x19,text);++entry.count;
+        }
+        if(limit==3 && entry.rows.size()>3){
+            borrowedSourceLine(entry,entry.count,0x14,museum::i18n::text("museum.sources.more"));++entry.count;
+        }
+    }
+    count=entry.count;return entry.lines.data();
+}
+
 void __cdecl hk_GameTextLineToString(const void* lines, void* out) {
     const long long t0 = probeNow();   // the match and the swap build, never the engine's
     const unsigned char* extra = nullptr;
+    char sourceRecord[256];memcpy(sourceRecord,t_latch.record,sizeof(sourceRecord));sourceRecord[255]=0;
     __try {
         extra = pendingLine(lines);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
@@ -740,7 +881,9 @@ void __cdecl hk_GameTextLineToString(const void* lines, void* out) {
     borrowed.begin = nullptr;
     borrowed.end = nullptr;
     borrowed.cap = nullptr;
-    if (!tooltipSwapBuild(lines, extra, &owned, &borrowed)) {
+    size_t extraCount=1;
+    if(extra==g_lineYes)extra=sourceLines(sourceRecord,extraCount);
+    if (!tooltipSwapBuildMany(lines, extra, extraCount, &owned, &borrowed)) {
         probePresentAdd(probeNow() - t0);
         if (o_ToString) o_ToString(lines, out);
         return;
@@ -798,9 +941,9 @@ bool verifyLineSeh(const unsigned char* line, unsigned int cls, size_t wantLen) 
 
 bool buildLine(unsigned char* line, unsigned int cls, const char* ascii) {
     memset(line, 0, kLineSize);
-    unsigned short storage[128];
+    unsigned short storage[512];
     MsvcWString in;
-    makeWide(&in, ascii, storage, 128);
+    makeWide(&in, ascii, storage, 512);
     // ENGINE CALL, deliberately UNGUARDED (rule 9). dllmain's vectored handler already logs any
     // access violation with one of this DLL's frames on the stack, and the ctor never reads its
     // destination - it _Tidy_init's the string in place before assigning.
@@ -841,6 +984,54 @@ unsigned tooltipPickClass(int fromIni, unsigned fallback, const char* which) {
     logD("an unregistered class has an empty style name, so the line would lose its colour "
          "(%d classes are registered)", kTextClassCount);
     return fallback;
+}
+
+
+void tooltipSourcesTick(){
+    if(!g_sourceWorker)return;
+    try {
+        static DWORD last=0;const DWORD now=GetTickCount();if(now-last<500)return;last=now;
+        gen::LootContext context;const bool valid=readSourceContext(&context);
+        if(!valid){g_sourceContextValid=false;g_sourceReady=false;if(!g_sources.empty()){g_sources.clear();++g_sourceRevision;}g_sourceStatusLines.prepared=false;return;}
+        const bool changed=!g_sourceContextValid||!(context==g_sourceContext);
+        g_sourceContextValid=true;
+        if(changed){g_sourceContext=context;g_sourceReady=false;if(!g_sources.empty()){g_sources.clear();++g_sourceRevision;}g_sourceStatusLines.prepared=false;
+            {std::lock_guard<std::mutex> lock(g_sourceWorker->mutex);g_sourceWorker->wanted=context;g_sourceWorker->pending=true;}
+            SetEvent(g_sourceWorker->event);}
+        std::string result;
+        {std::lock_guard<std::mutex> lock(g_sourceWorker->mutex);
+            if(g_sourceWorker->failed)g_sourceStatusLines.prepared=false;
+            if(g_sourceWorker->completed){g_sourceWorker->completed=false;
+                if(g_sourceWorker->ready==context)result=std::move(g_sourceWorker->result);}}
+        if(!result.empty()){parseSources(result);g_sourceReady=true;g_sourceStatusLines.prepared=false;}
+    } catch(...) {if(!g_sources.empty()){g_sources.clear();++g_sourceRevision;}g_sourceReady=false;}
+}
+const char* tooltipSourceStatus(){
+    if(!g_sourceWorker||!g_sourceContextValid)return museum::i18n::text("museum.sources.unavailable");
+    {std::lock_guard<std::mutex> lock(g_sourceWorker->mutex);if(g_sourceWorker->failed)return museum::i18n::text("museum.sources.unavailable");}
+    return museum::i18n::text(g_sourceReady?"museum.sources.none":"museum.sources.loading");
+}
+unsigned tooltipSourceRevision(){return g_sourceRevision;}
+const char* tooltipBestSourceName(const char* record){
+    auto found=g_sources.find(sourceKey(record));
+    return found==g_sources.end()||found->second.rows.empty()?"":found->second.rows.front().name.c_str();
+}
+bool tooltipSourceText(const char* record,size_t index,TooltipSourceText& output) {
+    output={};auto found=g_sources.find(sourceKey(record));
+    if(found==g_sources.end() || index>=found->second.rows.size())return false;
+    const auto& row=found->second.rows[index];
+    static const char* const difficulties[]={"museum.difficulty.normal","museum.difficulty.epic","museum.difficulty.legendary"};
+    static const char* const kinds[]={"museum.source.loot","museum.source.equipment","museum.source.chest"};
+    snprintf(output.name,sizeof(output.name),"%s",row.name.c_str());
+    snprintf(output.details,sizeof(output.details),museum::i18n::text("museum.sources.details"),
+        museum::i18n::text(difficulties[row.difficulty]),museum::i18n::text(kinds[row.kind]),row.level);
+    char probability[32];snprintf(probability,sizeof(probability),row.probability<0.000001?"%.3g%%":"%.4f%%",row.probability*100);
+    snprintf(output.chance,sizeof(output.chance),"≈%s",probability);return true;
+}
+bool tooltipSourceRow(const char* record,size_t index,char* output,size_t capacity) {
+    if(!output||!capacity)return false;output[0]=0;
+    TooltipSourceText parts;if(!tooltipSourceText(record,index,parts))return false;
+    snprintf(output,capacity,"%s — %s: %s",parts.name,parts.details,parts.chance);return true;
 }
 
 int tooltipCollectedState(const char* record, bool* fromMemo) {
@@ -936,6 +1127,7 @@ bool tooltipInit(HMODULE selfModule) {
         disable("a prepared GameTextLine did not verify after the engine's ctor ran");
         return false;
     }
+    loadSources(selfModule);
     InterlockedExchange(&g_linesReady, 1);
     const TextClassInfo* iy = classInfo(g_classYes);
     const TextClassInfo* in = classInfo(g_classNo);

@@ -39,7 +39,18 @@ inline std::map<std::string,std::string>& messages() {
 {"museum.category.charm","Charms"},
 {"museum.category.scroll","Scrolls"},
 {"museum.tooltip.collected","In your collection"},
-{"museum.tooltip.not_collected","Not in your collection"}};
+{"museum.tooltip.not_collected","Not in your collection"},
+{"museum.sources.details","%s · %s · lv. %d"},
+{"museum.sources.more","Hold Shift for more sources"},
+{"museum.sources.loading","Calculating drop chances..."},
+{"museum.sources.unavailable","Drop context unavailable."},
+{"museum.sources.none","No sources for the current difficulty."},
+{"museum.source.loot","loot"},
+{"museum.source.equipment","equipment"},
+{"museum.source.chest","chest"},
+{"museum.difficulty.normal","Normal"},
+{"museum.difficulty.epic","Epic"},
+{"museum.difficulty.legendary","Legendary"}};
     return data;
 }
 inline const char* text(const char* key) {

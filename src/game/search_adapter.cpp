@@ -816,6 +816,10 @@ double msSince(const LARGE_INTEGER& t0) {
     return f.QuadPart ? (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)f.QuadPart : 0.0;
 }
 
+bool sourceMatchOf(int g,int k){
+    const char* name=tooltipBestSourceName(liveGroupRecord(g,k));
+    return g_active && g_needle && name && *name && utSearchHit(utSearchNeedleUtf8(name),*g_needle);
+}
 bool matchOf(int idx) {
     return g_ix->state[(size_t)idx] == kIndexed && g_needle &&
            utSearchHit(g_ix->text[(size_t)idx], *g_needle);
@@ -885,7 +889,7 @@ bool indexRecord(int g, int k, const void* player, const char* how, bool inBuild
             logD("search: %s is unindexable - %s", record ? record : "?", cap.why);
         }
     }
-    liveSearchSetMatch(g, k, matchOf(idx) || (g_active && strncmp(liveGroupLabel(g),"Set:",4)==0 && utSearchHit(utSearchNeedleUtf8(liveGroupLabel(g)+4),*g_needle)));
+    liveSearchSetMatch(g, k, matchOf(idx) || (g_active && strncmp(liveGroupLabel(g),"Set:",4)==0 && utSearchHit(utSearchNeedleUtf8(liveGroupLabel(g)+4),*g_needle)), sourceMatchOf(g,k));
     ++g_ix->processed;
     InterlockedExchange(&g_labelDone, g_ix->processed);
     if (++g_ix->done[(size_t)g] >= liveGroupEntries(g)) {
@@ -1045,9 +1049,11 @@ void searchTick(bool worldUp) {
     }
     // the query: the field's text, folded (a change highlights again; the page is not rebuilt)
     const LONG gen = InterlockedCompareExchange(&g_fieldGen, 0, 0);
+    static unsigned sourceSeen=0;const unsigned sourceRevision=tooltipSourceRevision();
+    const bool sourceChanged=sourceSeen!=sourceRevision;sourceSeen=sourceRevision;
     bool startSync = false;
     const char* syncHow = "sync at a query";
-    if (gen != g_fieldSeen || g_active != (g_cfg.search != 0 && !g_needle->empty())) {
+    if (sourceChanged || gen != g_fieldSeen || g_active != (g_cfg.search != 0 && !g_needle->empty())) {
         g_fieldSeen = gen;
         unsigned short buf[kUtSearchFieldMax + 1];
         const int n = fieldCopy(buf);
@@ -1058,7 +1064,7 @@ void searchTick(bool worldUp) {
             needle.clear();
         }
         const bool active = g_cfg.search != 0 && !needle.empty();
-        const bool changed = active != g_active || (active && needle != *g_needle);
+        const bool changed = sourceChanged || active != g_active || (active && needle != *g_needle);
         g_needle->swap(needle);
         if (changed) {
             g_active = active;
@@ -1066,7 +1072,7 @@ void searchTick(bool worldUp) {
             for (int g = 0; g < liveGroupCount(); ++g) {
                 liveSearchSetNameMatch(g,active && strncmp(liveGroupLabel(g),"Set:",4)==0 && utSearchHit(utSearchNeedleUtf8(liveGroupLabel(g)+4),*g_needle));
                 for (int k = 0; k < liveGroupEntries(g); ++k)
-                    liveSearchSetMatch(g, k, active && (matchOf(g_ix->base[(size_t)g] + k) || (strncmp(liveGroupLabel(g),"Set:",4)==0 && utSearchHit(utSearchNeedleUtf8(liveGroupLabel(g)+4),*g_needle))));
+                    liveSearchSetMatch(g, k, active && (matchOf(g_ix->base[(size_t)g] + k) || (strncmp(liveGroupLabel(g),"Set:",4)==0 && utSearchHit(utSearchNeedleUtf8(liveGroupLabel(g)+4),*g_needle))), sourceMatchOf(g,k));
             }
             applyToPage();   // the highlight and the marks follow; nothing is laid out again
             if (!active) {

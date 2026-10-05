@@ -77,7 +77,7 @@ bool liveEmptyPageOk();
 // group keeps a match flag per record next to its owned flag. The search never lays the page out:
 // OWN, the row scroll, livePageCount and the window are the ones without the search, always; a
 // match only marks its slot (liveSearchHighlight).
-void liveSearchSetMatch(int group, int k, bool match);
+void liveSearchSetMatch(int group, int k, bool match, bool sourceMatch=false);
 // `active` = a query stands. Recomputes every group's match count and the marks (bit i = group i
 // is fully indexed, per `indexedMask`, and holds a match that passes OWN). The page is not rebuilt.
 void liveSearchApply(bool active, unsigned indexedMask);

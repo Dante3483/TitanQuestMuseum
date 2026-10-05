@@ -87,7 +87,7 @@ cl /utf-8 /nologo /c /O2 /Oy- /MT /Zi /W4 /WX /EHsc /std:c++17 /GR- /DNDEBUG ^
    /DWIN32_LEAN_AND_MEAN /DNOMINMAX /D_CRT_SECURE_NO_WARNINGS ^
    /I"%ROOT%src" /Fo"%OBJ%\\" /Fd"%OBJ%\TitanQuestMuseum_gen.pdb" ^
    "%ROOT%src\game\archive\inflate.cpp" "%ROOT%src\game\archive\arz_reader.cpp" "%ROOT%src\game\archive\arc_reader.cpp" ^
-   "%ROOT%src\game\archive\catalogue_gen.cpp" "%ROOT%src\game\archive\generate.cpp" ^
+   "%ROOT%src\game\archive\loot_sources.cpp" "%ROOT%src\game\archive\catalogue_gen.cpp" "%ROOT%src\game\archive\generate.cpp" ^
    "%ROOT%src\backend\model\catalogue.cpp"
 if errorlevel 1 goto :fail
 

@@ -37,6 +37,11 @@ namespace integration {
 // checks none of them is a folded stub, and builds the two static GameTextLine records. Safe to
 // call twice.
 bool tooltipInit(HMODULE selfModule);
+// Game thread only: poll live context and publish background calculations.
+void tooltipSourcesTick();
+const char* tooltipSourceStatus();
+unsigned tooltipSourceRevision();
+const char* tooltipBestSourceName(const char* record);
 
 // Worker thread, from hooksInstall(). Installs the tooltip detours ALL-OR-NOTHING: every hook is
 // created first, and only if every create succeeded are they enabled; otherwise the created ones
@@ -47,6 +52,11 @@ int tooltipInstall(int* total);
 
 // One line for the log / the menu test. Never touches engine memory.
 const char* tooltipStatus();
+
+// Safe source-only text for the anonymous museum rollover; no item text builder is called.
+struct TooltipSourceText { char name[1024],details[256],chance[40]; };
+bool tooltipSourceText(const char* record,size_t index,TooltipSourceText& output);
+bool tooltipSourceRow(const char* record, size_t index, char* output, size_t capacity);
 
 // ---- the swap, exposed so the offline harness drives the SAME code the game drives -------------
 // The borrowed vector handed to GameTextLineToString's trampoline: VS2012 std::vector's

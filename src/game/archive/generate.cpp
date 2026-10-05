@@ -1,3 +1,4 @@
+#include "game/archive/loot_sources.h"
 // generate.cpp - see generate.h.
 #include "game/archive/generate.h"
 #include "game/archive/catalogue_gen.h"
@@ -19,7 +20,7 @@ namespace gen {
 namespace {
 
 const char* const kStampName = "catalogue.stamp";
-const char* const kOutputs[4] = {"catalogue.bin", "uniq-records.txt", "uniq-groups.txt", "uniq-excluded.txt"};
+const char* const kOutputs[6] = {"catalogue.bin", "uniq-records.txt", "uniq-groups.txt", "uniq-excluded.txt", "loot-sources.txt", "loot-model.bin"};
 
 // The process's working set in MB, current and peak, 0 when the call is not there.
 // K32GetProcessMemoryInfo lives in kernel32; resolving it at run time keeps the DLL from
@@ -72,7 +73,7 @@ std::string tmpName(const std::string& modDir, int i) {
 
 // The temporary names, whether this run or a crashed earlier one left them.
 void deleteTemporaries(const std::string& modDir) {
-    for (int i = 0; i < 4; ++i) DeleteFileA(tmpName(modDir, i).c_str());
+    for (int i = 0; i < 6; ++i) DeleteFileA(tmpName(modDir, i).c_str());
 }
 
 // Deletes the temporaries on every exit that is not the rename into place.
@@ -121,7 +122,7 @@ std::string inputFingerprint(const std::string& gameDir, const std::string& lang
     // same inputs, so an installation that already has a stamp regenerates once with the new
     // build instead of keeping text the DLL no longer expects. Titan Quest restarts the count
     // at 1 (catalogue.bin v2, uniq-records / uniq-groups / uniq-excluded).
-    std::string fp = "GDUT-STAMP 7\nlang=" + lang + "\n";
+    std::string fp = "GDUT-STAMP 13\nlang=" + lang + "\n";
     for (const std::string& r : rel) fp += stampLine(gameDir + "\\" + r, r);
     return fp;
 }
@@ -215,7 +216,7 @@ bool ensureOutputs(const std::string& gameDir, const std::string& modDir,
     deleteTemporaries(modDir);
     std::vector<CatalogueItem> items;
     std::vector<ExcludedItem> excluded;
-    std::string err;
+    std::string err, sources, sourceModel;
     {
         // the archives are open only for the collection pass; their indexes are gone before
         // anything is written
@@ -225,6 +226,7 @@ bool ensureOutputs(const std::string& gameDir, const std::string& modDir,
             report.error = "the collection rule: " + err;
             return false;
         }
+        if (!buildLootSources(g, items, sources, report.warnings, &err, &sourceModel)) { report.error = "loot sources: " + err; return false; }
         writeGrayIcons(g, items, modDir, report);   // while the archives are open
     }
     std::vector<std::uint8_t> bin;
@@ -234,9 +236,9 @@ bool ensureOutputs(const std::string& gameDir, const std::string& modDir,
     buildLists(items, excluded, lists);
     // temporary names first; nothing in the folder changes until all four are good
     TmpGuard guard(modDir);
-    const void* data[4] = {bin.data(), lists.records.data(), lists.groups.data(), lists.excluded.data()};
-    std::size_t size[4] = {bin.size(), lists.records.size(), lists.groups.size(), lists.excluded.size()};
-    for (int i = 0; i < 4; ++i) {
+    const void* data[6] = {bin.data(), lists.records.data(), lists.groups.data(), lists.excluded.data(), sources.data(), sourceModel.data()};
+    std::size_t size[6] = {bin.size(), lists.records.size(), lists.groups.size(), lists.excluded.size(), sources.size(), sourceModel.size()};
+    for (int i = 0; i < 6; ++i) {
         if (!writeBytes(tmpName(modDir, i), data[i], size[i])) {
             report.error = "writing " + tmpName(modDir, i);
             return false;
@@ -249,7 +251,7 @@ bool ensureOutputs(const std::string& gameDir, const std::string& modDir,
             return false;
         }
     }
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 6; ++i) {
         std::string src = tmpName(modDir, i);
         std::string dst = modDir + "\\" + kOutputs[i];
         if (!MoveFileExA(src.c_str(), dst.c_str(),

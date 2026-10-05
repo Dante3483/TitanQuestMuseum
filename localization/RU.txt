@@ -34,3 +34,18 @@ museum.category.charm=Амулеты
 museum.category.scroll=Свитки
 museum.tooltip.collected=Есть в коллекции
 museum.tooltip.not_collected=Нет в коллекции
+
+museum.source.loot=добыча
+museum.source.equipment=экипировка
+museum.source.chest=сундук
+museum.difficulty.normal=Обычная
+museum.difficulty.epic=Эпическая
+museum.difficulty.legendary=Легендарная
+
+museum.sources.loading=Расчёт шансов выпадения…
+museum.sources.unavailable=Контекст выпадения недоступен.
+museum.sources.none=Нет источников для текущей сложности.
+
+museum.sources.more=Удерживайте Shift — больше источников
+
+museum.sources.details=%s · %s · ур. %d

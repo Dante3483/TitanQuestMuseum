@@ -251,6 +251,7 @@ void __fastcall hk_PresentSurface(TqEngine* self, void* /*edx*/) {
         // was installed too late to catch the load. One interlocked read per frame after that.
         hookLateLoadTick(true);
         presentBody(self);
+        tooltipSourcesTick();
         trySubclass(InterlockedCompareExchange64(&g_frames, 0, 0));
         panelGrayPrepare(InterlockedCompareExchange(&g_world, 0, 0) == 0);
         const LONG64 t0 = probeNow();
