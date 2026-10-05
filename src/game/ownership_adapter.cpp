@@ -165,6 +165,18 @@ struct WalkOut {
 // is named too, for the name self-check. Inside one guard; `v` is freed by the caller.
 bool walkObjects(TqPtrVector* v, const unsigned* protoIds, const int* protoIdx, int protoN,
                  WalkOut* o) {
+    // Only container items and this page's prototypes matter. Once every requested
+    // id has been named, the rest of the world's monsters/scenery cannot add evidence.
+    static unsigned containerIds[2*kIdCap];
+    static unsigned wantedIds[2*kIdCap+kUtProtoMax];
+    static unsigned char seen[2*kIdCap+kUtProtoMax];
+    unsigned* containerEnd=std::set_union(g_ids,g_ids+g_idCount,
+        g_invIds,g_invIds+g_invCount,containerIds);
+    unsigned* wantedEnd=std::set_union(containerIds,containerEnd,
+        protoIds,protoIds+protoN,wantedIds);
+    const size_t wantedCount=(size_t)(wantedEnd-wantedIds);
+    memset(seen,0,wantedCount);
+    size_t resolved=0;
     bool ok = false;
     utGuardEnter();
     __try {
@@ -173,12 +185,15 @@ bool walkObjects(TqPtrVector* v, const unsigned* protoIds, const int* protoIdx, 
             g_tq.ObjectManagerGetObjectList(om, v);
             if (v->last >= v->first && v->end >= v->last && (v->last - v->first) <= 4000000) {
                 const size_t n = (size_t)(v->last - v->first);
-                o->objects = (int)n;
                 for (size_t i = 0; i < n; ++i) {
+                    if(resolved==wantedCount) break;
+                    o->objects=(int)i+1;
                     const void* obj = v->first[i];
                     if (!obj) continue;
                     const unsigned id = g_tq.ObjectGetObjectId(obj);
                     if (!id) continue;
+                    const unsigned* wanted=std::lower_bound(wantedIds,wantedEnd,id);
+                    if(wanted==wantedEnd || *wanted!=id || seen[wanted-wantedIds]) continue;
                     const bool inv = sortedHas(g_invIds, g_invCount, id);
                     const bool want = inv || sortedHas(g_ids, g_idCount, id);
                     const unsigned* pp = std::lower_bound(protoIds, protoIds + protoN, id);
@@ -187,6 +202,8 @@ bool walkObjects(TqPtrVector* v, const unsigned* protoIds, const int* protoIdx, 
                     char key[kKeyCap];
                     if (!utOwnedNormaliseKey(g_tq.ObjectGetObjectName(obj), key, sizeof(key)))
                         continue;
+                    seen[wanted-wantedIds]=1;
+                    ++resolved;
                     if (proto) {
                         ++o->protoSeen;
                         const char* rec = nullptr;
@@ -398,12 +415,12 @@ void refresh() {
 
 // Every refresh ends here: the page's flags, then the OWN filter's (ut_live), which asks for a
 // rebuild when the filtered page changes.
-void refreshAll() {
+void refreshAll(bool recount = true) {
     const long long t0 = probeNow();
     refresh();
     probeScan(probeNow() - t0);   // the owned scan (the object-list walk) alone
     computePage();
-    computeAll(true);
+    computeAll(recount);
     liveOwnedChanged();
 }
 
@@ -435,7 +452,7 @@ void ownedMarkDirty() { InterlockedExchange(&g_dirty, 1); }
 void ownedTick(bool on) {
     ++g_ticks;
     if (!on || !InterlockedCompareExchange(&g_dirty, 0, 0) || g_ticks - g_lastRefresh < 30) return;
-    refreshAll();
+    refreshAll(false); // inventory-only changes do not invalidate the journal count cache
 }
 
 void ownedOnViewOff() {

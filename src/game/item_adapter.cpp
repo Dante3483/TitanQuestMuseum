@@ -610,6 +610,15 @@ void protoObjectRecord(const void* obj, char* out, unsigned cap) {
 bool protoFindObjects(unsigned itemId, unsigned ctrlId, const void** item, const void** ctrl) {
     if (item) *item = nullptr;
     if (ctrl) *ctrl = nullptr;
+    // Museum items are already tracked with their live pointers. They do not need
+    // another world scan; controller/foreign-item lookup still uses the engine list.
+    if (item && itemId) {
+        for (int i=0;i<g_liveCount;++i) if(g_live[i].id==itemId) {
+            *item=g_live[i].item;
+            break;
+        }
+    }
+    if ((!item || !itemId || *item) && (!ctrl || !ctrlId)) return true;
     if (!g_tq.ObjectManagerGet || !g_tq.ObjectManagerGetObjectList || !g_tq.ObjectGetObjectId)
         return false;
     TqPtrVector v = {nullptr, nullptr, nullptr};
@@ -631,6 +640,7 @@ bool protoFindObjects(unsigned itemId, unsigned ctrlId, const void** item, const
     }
     const size_t n = v.first && v.last >= v.first ? (size_t)(v.last - v.first) : 0;
     for (size_t k = 0; k < n && n < 4000000; ++k) {
+        if ((!item || !itemId || *item) && (!ctrl || !ctrlId || *ctrl)) break;
         const void* obj = nullptr;
         if (!safeRead(v.first + k, &obj, sizeof(obj)) || !obj) continue;
         const unsigned id = objectId(obj);
@@ -652,6 +662,7 @@ bool protoFindObjects(unsigned itemId, unsigned ctrlId, const void** item, const
 bool protoFindItems(const unsigned* ids, int n, const void** objs) {
     if (!ids || !objs || n < 0) return false;
     for (int i = 0; i < n; ++i) objs[i] = nullptr;
+    if (!n) return true;
     // without the Item test nothing can be compared - that is "not read", never
     // "none there"
     if (!g_tq.ObjectManagerGet || !g_tq.ObjectManagerGetObjectList || !g_tq.ObjectGetObjectId ||
@@ -671,6 +682,7 @@ bool protoFindItems(const unsigned* ids, int n, const void** objs) {
     }
     utGuardLeave();
     if (listed) {
+        int found=0;
         const size_t cnt = v.first && v.last >= v.first ? (size_t)(v.last - v.first) : 0;
         if (cnt >= 4000000) listed = false;   // over the bound = nothing compared
         for (size_t k = 0; listed && k < cnt; ++k) {
@@ -679,7 +691,10 @@ bool protoFindItems(const unsigned* ids, int n, const void** objs) {
             const unsigned id = objectId(obj);
             if (!id) continue;
             const unsigned* at = std::lower_bound(ids, ids + n, id);
-            if (at != ids + n && *at == id && isItemObject(obj)) objs[at - ids] = obj;
+            if (at != ids + n && *at == id && !objs[at - ids] && isItemObject(obj)) {
+                objs[at - ids] = obj;
+                if (++found==n) break;
+            }
         }
     }
     utGuardEnter();

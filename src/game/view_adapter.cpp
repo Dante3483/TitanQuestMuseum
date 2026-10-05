@@ -1390,8 +1390,8 @@ bool copyPlayer(void** inventory,void** invCtrl,TqSack** sacks,unsigned* count) 
     __try { player=g_tq.GameGetMainPlayer(ge); if(player) ctrlId=g_tq.CharGetControllerId(player); }
     __except(EXCEPTION_EXECUTE_HANDLER) { ctrlId=0; }
     utGuardLeave();
-    const void* ctrl=nullptr; const void* ignored=nullptr;
-    if (!ctrlId || !protoFindObjects(0,ctrlId,&ignored,&ctrl) || !ctrl) return false;
+    const void* ctrl=nullptr;
+    if (!ctrlId || !protoFindObjects(0,ctrlId,nullptr,&ctrl) || !ctrl) return false;
     bool ok=false;
     utGuardEnter();
     __try {
@@ -1470,8 +1470,21 @@ void viewCopyTick() {
     if(!utReplicaFromIdentity(&replica,row)) return;
     void* inventory=nullptr; void* invCtrl=nullptr; TqSack* sacks[16]={}; unsigned n=0;
     if(!copyPlayer(&inventory,&invCtrl,sacks,&n)) { logW("copy: inventory placement unavailable"); return; }
-    int asked=0;
-    if(inventoryRoomFor(request.id,&asked,false,nullptr)!=1) { playInventoryFullSound(); return; }
+    // copyPlayer already resolved the inventory and sacks. Check room here instead
+    // of enumerating every world object again through inventoryRoomFor.
+    const void* original=nullptr;
+    for(int i=0;i<protoCount();++i) {
+        unsigned sourceId=0;
+        if(protoAt(i,nullptr,nullptr,nullptr,&sourceId) && sourceId==request.id) { original=protoItem(i); break; }
+    }
+    bool room=false;
+    utGuardEnter();
+    __try {
+        for(unsigned i=0;original && i<n && !room;++i)
+            room=g_tq.SackIsSpaceForItem(sacks[i],static_cast<const TqItem*>(original));
+    } __except(EXCEPTION_EXECUTE_HANDLER) { room=false; }
+    utGuardLeave();
+    if(!room) { playInventoryFullSound(); return; }
     unsigned id=0; const char* fault=nullptr;
     TqItem* item=protoCreateLoose(replica,&id,&fault);
     UtReplicaCapture restored={}; char name[256]={}; unsigned stack=0;
