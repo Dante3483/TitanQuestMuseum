@@ -993,7 +993,9 @@ void __fastcall hk_ItemBackground(void* widget, void* /*edx*/, void* canvas, con
                                   const TqColor* colour, float inset, Bool32 met, Bool32 one) {
     UT_LE_SAVE;
     int token = -1;
+    bool museumItem = false;
     __try {
+        museumItem = panelMuseumItemBackground(widget);
         token = panelItemBackgroundPre(widget);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         token = -1;
@@ -1002,7 +1004,10 @@ void __fastcall hk_ItemBackground(void* widget, void* /*edx*/, void* canvas, con
     const int save = integration::utBgTokenSave(token);
     // Museum already reserves the shared grid edge; avoid the native second inset.
     if (!integration::utBgTokenSkip(token))
-        o_ItemBackground(widget, canvas, origin, colour, save>=0 ? 0.0f : inset, met, one);
+        // Only the background draw treats Museum requirements as met, so the native
+        // renderer selects rarity colour. Actual item requirements remain untouched.
+        o_ItemBackground(widget, canvas, origin, colour, save>=0 ? 0.0f : inset,
+                         museumItem ? 1u : met, one);
     if (save < 0) return;
     const DWORD leAfter = GetLastError();
     __try {

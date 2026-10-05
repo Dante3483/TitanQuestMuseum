@@ -1752,6 +1752,12 @@ void panelRectRouteBegin(void* page) {
     }
 }
 
+bool panelMuseumItemBackground(const void* widget) {
+    if (!viewOn() || !widget) return false;
+    unsigned id=0;
+    return safeRead((const unsigned char*)widget+kUtWidgetItemId,&id,sizeof(id)) && protoIsId(id);
+}
+
 int panelItemBackgroundPre(void* widget) {
     if (!g_rrActive || !widget || g_rrN >= kUtProtoMax) return -1;
     unsigned char* w = (unsigned char*)widget;
@@ -2139,7 +2145,9 @@ bool tintRefresh(const void* page) {
             const void* item = protoItem(i);
             Tint t = {shade, kUtTintNone};
             if (item) {
-                const bool met = g_tq.EquipAreRequirementsMet(eq, item);
+                // Museum colours describe rarity, regardless of player requirements.
+                // This is only the fallback draw; equipment/tooltip checks are unchanged.
+                const bool met = true;
                 const int cls = met ? g_tq.ItemGetActualClassification(item) : 0;
                 TqColorF cf = {1.0f, 1.0f, 1.0f, 1.0f};
                 const bool colOk = met && optOn && cls != 0 && g_tq.GameGetItemColor(ge, cls, &cf);
@@ -2161,8 +2169,8 @@ bool tintRefresh(const void* page) {
     if (!ok) g_tintCtrl = nullptr;   // the next refresh looks the controller up again
     if (ok && !g_tintSaid) {
         g_tintSaid = true;
-        logI("panel: slot-wide item tint ON - the engine's own colour and condition on each "
-             "prototype (EquipmentCtrl::AreRequirementsMet, Item::GetActualItemClassification, "
+        logI("panel: slot-wide Museum rarity tint ON - independent of player requirements "
+             "(Item::GetActualItemClassification, "
              "GameEngine::GetItemColor / GetItemBackgroundOpacity; inset %.0f px): %d red, %d by "
              "classification, %d shade of %d",
              inset, counts[kUtTintFails], counts[kUtTintClass], counts[kUtTintShade], n);

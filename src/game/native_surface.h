@@ -37,6 +37,7 @@ void panelRectRouteBegin(void* page);
 void panelRectRouteEnd();
 void panelRectRouteUnwound();
 int panelItemBackgroundPre(void* widget);
+bool panelMuseumItemBackground(const void* widget);
 void panelItemBackgroundPost(int save);   // utBgTokenSave(token) >= 0
 
 }  // namespace integration
