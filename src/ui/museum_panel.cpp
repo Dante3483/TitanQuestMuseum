@@ -1,3 +1,4 @@
+#include "backend/localization.h"
 #include "ui/museum_panel.h"
 #include <cwchar>
 namespace museum::ui {
@@ -20,9 +21,9 @@ void MuseumPanel::arrange(Rect caravan,float scale,const MuseumState& state) {
             c.caption,{ActionKind::SelectCategory,c.id},state.selectedCategory==c.id,true,
             c.searchMatch,state.searchText[0]!=0 && c.indexed && !c.searchMatch};
     }
-    buttons_[buttonCount_++]={layout_.owned,"Owned",{ActionKind::ToggleOwned,0},state.ownedOnly};
-    buttons_[buttonCount_++]={layout_.transfer,"Transfer",{ActionKind::ShowTransfer,0},state.mode==Mode::Transfer};
-    buttons_[buttonCount_++]={layout_.collection,"Collection",{ActionKind::ShowCollection,0},state.mode==Mode::Collection};
+    buttons_[buttonCount_++]={layout_.owned,i18n::text("museum.owned"),{ActionKind::ToggleOwned,0},state.ownedOnly};
+    buttons_[buttonCount_++]={layout_.transfer,i18n::text("museum.transfer"),{ActionKind::ShowTransfer,0},state.mode==Mode::Transfer};
+    buttons_[buttonCount_++]={layout_.collection,i18n::text("museum.collection"),{ActionKind::ShowCollection,0},state.mode==Mode::Collection};
 }
 int MuseumPanel::hit(float x,float y) const {
     if (!visible_) return -1;
@@ -58,7 +59,8 @@ void MuseumPanel::draw(Renderer& r,const MuseumState& state,int over,int pressed
     const wchar_t* start=text;
     while (*start && r.measure(start,font)>area.w) ++start;
     if (n>0) r.text(area,start,font,gold,TextAlign::Left);
-    else r.text(area,state.searchEnabled ? L"Search" : L"Search off",font,hover,TextAlign::Left);
+    else { wchar_t label[64]; widen(i18n::text(state.searchEnabled ? "museum.search" : "museum.search_off"),label,64);
+        r.text(area,label,font,hover,TextAlign::Left); }
     if (state.searchText[0]) tr.drawCentered(layout_.clearSearch,L"x",font,gold);
     StatisticsView{layout_.statistics}.draw(r,state,font,
         static_cast<int>(pixel(style_.statsMinFontSize*scale_)),pad);

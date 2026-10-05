@@ -1,3 +1,5 @@
+#include <cstring>
+#include "backend/localization.h"
 #include "game/collection_bridge.h"
 #include "game/item_adapter.h"
 #include "backend/collection_runtime.h"
@@ -12,6 +14,11 @@ namespace museum::game {
 bool initializeCollection(void* module) {
     char path[MAX_PATH];
     if (!integration::utModFile(static_cast<HMODULE>(module),"uniq-groups.txt",path,sizeof(path))) return false;
+    char directory[MAX_PATH];
+    if (GetModuleFileNameA(static_cast<HMODULE>(module),directory,MAX_PATH)) {
+        char* slash=strrchr(directory,'\\');
+        if (slash) { *slash=0; i18n::load(directory,integration::g_cfg.textLanguage); }
+    }
     integration::collectionOwnershipProvider(integration::ownedKnown,integration::ownedRecordState);
     return integration::collectionInitialize(path,integration::g_cfg.ownedOnly!=0);
 }

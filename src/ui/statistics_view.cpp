@@ -1,3 +1,4 @@
+#include "backend/localization.h"
 #include "ui/statistics_view.h"
 #include <cstdio>
 namespace museum::ui {
@@ -10,9 +11,9 @@ void StatisticsView::draw(Renderer& r,const MuseumState& state,int base,int mini
     else std::snprintf(all,sizeof(all),"?/%d",a.total);
     const char* query = state.searchStatus;
     if (state.mode == Mode::Collection)
-        std::snprintf(line,sizeof(line),"%s %s%s%s | All %s",state.shownCategoryName,category,
-                      query[0] ? " | " : "",query,all);
-    else std::snprintf(line,sizeof(line),"Transfer%s%s | All %s",query[0] ? " | " : "",query,all);
+        std::snprintf(line,sizeof(line),"%s %s%s%s | %s %s",state.shownCategoryName,category,
+                      query[0] ? " | " : "",query,i18n::text("museum.all"),all);
+    else std::snprintf(line,sizeof(line),"%s%s%s | %s %s",i18n::text("museum.transfer"),query[0] ? " | " : "",query,i18n::text("museum.all"),all);
     wchar_t text[192]; widen(line,text,192);
     TextRenderer tr(r);
     const Rect area = {rect.x+padding,rect.y+padding,rect.w-padding,rect.h-2*padding};

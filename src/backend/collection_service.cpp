@@ -1,3 +1,4 @@
+#include "backend/localization.h"
 #include "backend/museum_state.h"
 #include <cstring>
 
@@ -5,14 +6,14 @@ namespace museum {
 namespace {
 struct CategoryName { const char* label; const char* caption; Section section; };
 constexpr CategoryName names[] = {
-    {"Helms", "Helm", Section::Equipment}, {"Torso", "Torso", Section::Equipment},
-    {"Arms", "Arms", Section::Equipment}, {"Legs", "Legs", Section::Equipment},
-    {"Amulets", "Amulet", Section::Equipment}, {"Rings", "Ring", Section::Equipment},
-    {"Shields", "Shield", Section::Weapons}, {"Axes", "Axe", Section::Weapons},
-    {"Maces", "Mace", Section::Weapons}, {"Staves", "Staff", Section::Weapons},
-    {"Swords", "Sword", Section::Weapons}, {"Throwing", "Throw", Section::Weapons},
-    {"Spears", "Spear", Section::Weapons}, {"Bows", "Bow", Section::Weapons},
-    {"Artifacts", "Artifact", Section::Other}
+    {"Helms", "museum.category.helm", Section::Equipment}, {"Torso", "museum.category.torso", Section::Equipment},
+    {"Arms", "museum.category.arms", Section::Equipment}, {"Legs", "museum.category.legs", Section::Equipment},
+    {"Amulets", "museum.category.amulet", Section::Equipment}, {"Rings", "museum.category.ring", Section::Equipment},
+    {"Shields", "museum.category.shield", Section::Weapons}, {"Axes", "museum.category.axe", Section::Weapons},
+    {"Maces", "museum.category.mace", Section::Weapons}, {"Staves", "museum.category.staff", Section::Weapons},
+    {"Swords", "museum.category.sword", Section::Weapons}, {"Throwing", "museum.category.throw", Section::Weapons},
+    {"Spears", "museum.category.spear", Section::Weapons}, {"Bows", "museum.category.bow", Section::Weapons},
+    {"Artifacts", "museum.category.artifact", Section::Other}
 };
 }
 Section categorySection(const char* label) {
@@ -20,11 +21,11 @@ Section categorySection(const char* label) {
     return Section::Other;
 }
 const char* categoryCaption(const char* label) {
-    for (const auto& n : names) if (label && std::strcmp(n.label, label) == 0) return n.caption;
+    for (const auto& n : names) if (label && std::strcmp(n.label, label) == 0) return i18n::text(n.caption);
     return label ? label : "?";
 }
 const char* sectionCaption(Section s) {
-    return s == Section::Equipment ? "Equipment" : s == Section::Weapons ? "Weapons" : "Other";
+    return i18n::text(s == Section::Equipment ? "museum.section.equipment" : s == Section::Weapons ? "museum.section.weapons" : "museum.section.other");
 }
 MuseumState makeMuseumState(const CollectionSnapshot& source) {
     MuseumState state;

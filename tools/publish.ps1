@@ -22,3 +22,5 @@ if (Test-Path -LiteralPath $target) {
 } else { [IO.File]::Move($next,$target) }
 Copy-Item -LiteralPath (Join-Path $taskRoot 'build/staging/TitanQuestMuseum.pdb') -Destination (Join-Path $dist 'TitanQuestMuseum.pdb') -Force
 Write-Output "Published $target"
+
+Copy-Item -LiteralPath (Join-Path $taskRoot 'localization') -Destination $dist -Recurse -Force

@@ -1,3 +1,4 @@
+#include "backend/localization.h"
 #include "backend/museum_state.h"
 #include "backend/model/layout.h"
 #include "game/view_safety.h"
@@ -43,6 +44,16 @@ MuseumState fixture(Section section) {
 }
 }
 int main() {
+    {
+        wchar_t decoded[32];
+        widen("Поиск",decoded,32);
+        check(std::wcscmp(decoded,L"Поиск")==0,"UTF-8 Cyrillic captions decode correctly");
+        i18n::load(".","RU");
+        check(std::strcmp(sectionCaption(Section::Weapons),"Оружие")==0,"Russian section resource loads");
+        i18n::load(".","EN");
+        check(std::strcmp(sectionCaption(Section::Weapons),"Weapons")==0,"English resource restores captions");
+    }
+
     {
         CollectionSnapshot source=fixture(Section::Equipment);
         source.searchText[0]=L'a';

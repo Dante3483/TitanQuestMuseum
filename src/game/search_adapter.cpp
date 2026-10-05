@@ -1,3 +1,4 @@
+#include "backend/localization.h"
 // ut_search.cpp - the property search's game side (see ut_search.h): the capture, the index and
 // its schedule, the query, and the one fault latch. GAME THREAD ONLY, except the three getters
 // the pad reads (searchMarks, searchQueryStands, searchLabel), which read interlocked words.
@@ -1333,11 +1334,11 @@ void searchLabel(char* out, size_t cap, char* brief, size_t briefCap) {
     const LONG done = InterlockedCompareExchange(&g_labelDone, 0, 0);
     const LONG total = InterlockedCompareExchange(&g_labelTotal, 0, 0);
     if (done < total) {
-        _snprintf_s(out, cap, _TRUNCATE, "indexing %ld/%ld", done, total);
+        _snprintf_s(out, cap, _TRUNCATE, museum::i18n::text("museum.indexing"), done, total);
         if (brief && briefCap) _snprintf_s(brief, briefCap, _TRUNCATE, "%ld/%ld", done, total);
     } else {
         const int n = liveSearchFound(nullptr);
-        _snprintf_s(out, cap, _TRUNCATE, "found %d", n);
+        _snprintf_s(out, cap, _TRUNCATE, museum::i18n::text("museum.found"), n);
         if (brief && briefCap) _snprintf_s(brief, briefCap, _TRUNCATE, "=%d", n);
     }
 }
