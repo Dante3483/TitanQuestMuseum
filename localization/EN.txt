@@ -27,3 +27,10 @@ museum.category.artifact=Artifact
 museum.section.sets=Sets
 museum.back=Back
 museum.set_completed=Complete
+
+museum.category.formula=Formulas
+museum.category.relic=Relics
+museum.category.charm=Charms
+museum.category.scroll=Scrolls
+museum.tooltip.collected=In your collection
+museum.tooltip.not_collected=Not in your collection

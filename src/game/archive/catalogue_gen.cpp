@@ -15,6 +15,8 @@ namespace gen {
 
 namespace {
 
+std::string lowerName(const std::string& s);
+
 struct ClassSlot { const char* cls; const char* slot; };
 
 // TQ's item classes on GD's slot words (and so on the model's 29 groups, unchanged). TQ has no
@@ -32,6 +34,10 @@ const ClassSlot kEquipSlot[] = {
 };
 const ClassSlot kOtherSlot[] = {
     {"ItemArtifact", "relic"},
+    {"ItemArtifactFormula", "blueprint"},
+    {"ItemRelic", "component"},
+    {"ItemCharm", "charm"},
+    {"OneShot_Scroll", "consumable"},
 };
 const char* const kBlueprintClasses[] = {"ItemArtifactFormula"};
 const char* const kRelicClass = "ItemArtifact";
@@ -93,6 +99,7 @@ std::string bitmapOf(const ArzRecord& rec) {
     std::string v = rec.str("bitmap");
     if (v.empty()) v = rec.str("artifactBitmap");
     if (v.empty()) v = rec.str("relicBitmap");
+    if (v.empty()) v = rec.str("artifactFormulaBitmapName");
     return v;
 }
 bool hasTag(const std::unordered_map<std::string, std::string>& tags, const std::string& t) {
@@ -138,10 +145,30 @@ bool templateWords(const std::string& lowerText) {
     return false;
 }
 
+// Shipped records encode artifact size as LA/GA/DA and difficulty as 01/02/03.
+// Golden Scarab uses an explicit _n/_e/_l suffix instead of the numeric prefix.
+int otherTier(const std::string& record, bool artifact) {
+    const std::string key = ArzArchive::normKey(record);
+    const std::string leaf = key.substr(key.find_last_of('/') + 1);
+    if (artifact) {
+        if (leaf.find("_la_") != std::string::npos) return 0;
+        if (leaf.find("_ga_") != std::string::npos) return 1;
+        if (leaf.find("_da_") != std::string::npos) return 2;
+    } else {
+        if (leaf.compare(0, 2, "01") == 0 || leaf.find("_n_charm") != std::string::npos) return 0;
+        if (leaf.compare(0, 2, "02") == 0 || leaf.find("_e_charm") != std::string::npos) return 1;
+        if (leaf.compare(0, 2, "03") == 0 || leaf.find("_l_charm") != std::string::npos) return 2;
+    }
+    return -1;
+}
+
 bool isShipped(const std::string& key, const ArzRecord& rec, const std::string& cls,
                const GameData& g) {
     if (!itemPath(key)) return false;
-    if (templateWords(lowerAscii(rec.str("FileDescription"))) || templateWords(key)) return false;
+    // EE's shipped formula descriptions still say "Test - Arcane Formula".
+    const std::string desc = lowerAscii(rec.str("FileDescription"));
+    if ((templateWords(desc) && !(isBlueprintClass(cls) && desc == "test - arcane formula"))
+        || templateWords(key)) return false;
     if (hasTag(g.tags, nameTagOf(rec, cls))) return true;
     std::string tgt = craftedRecord(rec, cls);
     if (!tgt.empty()) {
@@ -234,6 +261,8 @@ bool collectItems(const GameData& g, std::vector<CatalogueItem>& items,
         const char* s = equipSlot(cls);
         if (!s) s = otherSlot(cls);
         it.slot = s ? s : "other";
+        if (!equipSlot(cls)) it.sortTier = otherTier(isBlueprintClass(cls) ? craftedRecord(rec, cls) : key,
+                                                   cls == "ItemArtifact" || isBlueprintClass(cls));
         it.craftsRecord = craftedRecord(rec, cls);
         it.nameTag = nameTagOf(rec, cls);
         it.name = stripTrailingBlanks(tagText(g.tags, it.nameTag));
@@ -247,7 +276,8 @@ bool collectItems(const GameData& g, std::vector<CatalogueItem>& items,
         it.expansion = expansionOf(key);
         it.isBlueprint = endsWith(cls, "Formula");
         it.isAugment = false;
-        it.isRelic = cls == kRelicClass;
+        it.isRelic = cls == kRelicClass || cls == "ItemRelic" || cls == "ItemCharm";
+        if (cls == "OneShot_Scroll") it.classification = "Common";
         it.isSetPiece = !it.setRecord.empty();
         it.isEquipment = equipSlot(cls) != nullptr;
         it.isExtra = false;
@@ -300,7 +330,16 @@ bool collectItems(const GameData& g, std::vector<CatalogueItem>& items,
         // Keep the original Epic/Legendary catalogue and additionally admit only
         // Monster Infrequent Rare equipment. Ordinary/random Rare bases stay out.
         const bool isMi = cla == "Rare" && isMonsterInfrequentRecord(key);
-        if (cla != "Epic" && cla != "Legendary" && !isMi) continue;
+        if (equipSlot(cls) && cla != "Epic" && cla != "Legendary" && !isMi) continue;
+        if (!equipSlot(cls)) {
+            const std::string target = isBlueprintClass(cls) ? craftedRecord(rec, cls) : key;
+            if (otherTier(target, cls == "ItemArtifact" || isBlueprintClass(cls)) < 0) continue;
+            if (isBlueprintClass(cls)) {
+                ArzRecord artifact;
+                if (!g.db->get(target, artifact) || artifact.str("Class") != "ItemArtifact"
+                    || !isShipped(ArzArchive::normKey(target), artifact, "ItemArtifact", g)) continue;
+            }
+        }
         if (!isShipped(key, rec, cls, g)) continue;
         cands.emplace_back(makeEntry(key, e, a.tag(), rec, cls), wi);
     }
@@ -461,6 +500,14 @@ bool packCatalogue(std::vector<CatalogueItem>& items, std::vector<std::uint8_t>&
     };
     std::sort(rows.begin(), rows.end(), [&](const Row& a, const Row& b) {
         if (a.grp != b.grp) return a.grp < b.grp;
+        if (a.it->sortTier >= 0 && b.it->sortTier >= 0) {
+            if (a.it->slot != b.it->slot) return a.it->slot < b.it->slot;
+            if (a.it->sortTier != b.it->sortTier) return a.it->sortTier < b.it->sortTier;
+            const int name = lowerName(a.it->name).compare(lowerName(b.it->name));
+            if (name != 0) return name < 0;
+            if (a.ilvl != b.ilvl) return a.ilvl < b.ilvl;
+            return a.it->record < b.it->record;
+        }
         const int ar = rarityRank(a.it->classification);
         const int br = rarityRank(b.it->classification);
         if (ar != br) return ar < br;
@@ -524,7 +571,7 @@ bool packCatalogue(std::vector<CatalogueItem>& items, std::vector<std::uint8_t>&
         if (it.isRelic) f |= kFRelic;
         if (startsWith(it.record, "records/items/faction/")) f |= kFFaction;
         if (it.isEquipment) f |= kFEquipment;
-        if (it.isEquipment || it.isRelic) f |= kFDefaultVisible;
+        if (it.isEquipment || it.isRelic || it.isBlueprint || it.cls == "OneShot_Scroll") f |= kFDefaultVisible;
         if (!it.bitmap.empty()) f |= kFHasBitmap;
         row.flags = f;
         row.fw = std::uint8_t(it.footW);
@@ -606,7 +653,7 @@ namespace {
 struct SlotInfo { const char* slot; const char* label; };
 // GD's layout order, with Titan Quest's labels on the slots TQ has.
 // Discovery v3: the generated groups now follow the collection UI rather than GD's historical
-// slot order.  TQ currently produces exactly these 15 groups.  The boundaries after Rings and
+// slot order.  TQ produces 19 primary groups, including crafting components and scrolls.  The boundaries after Rings and
 // Shields are also used by the panel to show Equipment / Weapons / Other as three visual blocks.
 const SlotInfo kSlotOrder[] = {
     // Equipment
@@ -616,7 +663,8 @@ const SlotInfo kSlotOrder[] = {
     {"sword1h", "Swords"}, {"axe1h", "Axes"}, {"mace1h", "Maces"}, {"spear2h", "Spears"},
     {"ranged2h", "Bows"}, {"ranged1h", "Throwing"}, {"scepter", "Staves"}, {"shield", "Shields"},
     // Other
-    {"relic", "Artifacts"},
+    {"relic", "Artifacts"}, {"blueprint", "Formulas"}, {"component", "Relics"},
+    {"charm", "Charms"}, {"consumable", "Scrolls"},
     // Kept as fallbacks for a future database class without disturbing the three primary blocks.
     {"shoulders", "Shoulders"}, {"waist", "Belts"}, {"feet", "Boots"}, {"medal", "Medals"},
     {"offhand", "Off-hands"}, {"dagger", "Daggers"}, {"axe2h", "2H Axes"},
@@ -648,6 +696,13 @@ std::string lowerName(const std::string& s) {
     for (std::size_t i = 0; i < o.size(); ++i) {
         unsigned char c = (unsigned char)o[i];
         if (c >= 'A' && c <= 'Z') o[i] = char(c + 32);
+        else if (c == 0xD0 && i + 1 < o.size()) {
+            unsigned char d = (unsigned char)o[i + 1];
+            if (d >= 0x90 && d <= 0x9F) o[i + 1] = char(d + 0x20);
+            else if (d >= 0xA0 && d <= 0xAF) { o[i] = '\xD1'; o[i + 1] = char(d - 0x20); }
+            else if (d == 0x81) { o[i] = '\xD1'; o[i + 1] = '\x91'; }
+            ++i;
+        }
         else if (c == 0xC3 && i + 1 < o.size()) {
             unsigned char d = (unsigned char)o[i + 1];
             if (d >= 0x80 && d <= 0x9E && d != 0x97) o[i + 1] = char(d + 0x20);
@@ -671,7 +726,7 @@ void buildLists(const std::vector<CatalogueItem>& items, const std::vector<Exclu
     std::vector<Picked> picked;
     picked.reserve(items.size());
     for (const CatalogueItem& it : items)
-        picked.push_back(Picked{&it, slotOrder(it.slot), rankOf(it.classification), lowerName(it.name)});
+        picked.push_back(Picked{&it, slotOrder(it.slot), (it.sortTier >= 0 ? it.sortTier : rankOf(it.classification)), lowerName(it.name)});
     std::sort(picked.begin(), picked.end(), [](const Picked& a, const Picked& b) {
         if (a.order != b.order) return a.order < b.order;
         if (a.rank != b.rank) return a.rank < b.rank;

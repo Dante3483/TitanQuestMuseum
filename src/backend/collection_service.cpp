@@ -13,7 +13,11 @@ constexpr CategoryName names[] = {
     {"Maces", "museum.category.mace", Section::Weapons}, {"Staves", "museum.category.staff", Section::Weapons},
     {"Swords", "museum.category.sword", Section::Weapons}, {"Throwing", "museum.category.throw", Section::Weapons},
     {"Spears", "museum.category.spear", Section::Weapons}, {"Bows", "museum.category.bow", Section::Weapons},
-    {"Artifacts", "museum.category.artifact", Section::Other}
+    {"Artifacts", "museum.category.artifact", Section::Other},
+    {"Formulas", "museum.category.formula", Section::Other},
+    {"Relics", "museum.category.relic", Section::Other},
+    {"Charms", "museum.category.charm", Section::Other},
+    {"Scrolls", "museum.category.scroll", Section::Other}
 };
 }
 Section categorySection(const char* label) {

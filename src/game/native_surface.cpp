@@ -1240,6 +1240,7 @@ struct RrSave {
     int proto;                     // the prototype index
     const TqTexture* iconOrig;     // the widget's own icon while the gray one is lent
     const TqTexture* iconGray;
+    void* counterStyle;            // borrowed only during this prototype widget draw
 };
 RrSave g_rrSave[kUtProtoMax];
 int g_rrN = 0;
@@ -1303,10 +1304,33 @@ bool rrCovers(int i) {
 // route left it (the same item, the centred rect): the engine owns the rect again the moment it
 // writes one of its own. From End, and from Begin for the leftovers of a draw whose End was skipped
 //.
+// TQ.exe+0x10A3D0 draws the quantity string only when [widget+0x6C]
+// (its text style) is non-null. Confirm the live instructions before using that field.
+const unsigned kWidgetCounterStyle = 0x6C;
+bool counterStyleLayoutKnown() {
+    static int known = -1;
+    if (known >= 0) return known != 0;
+    static const unsigned char code[] = {
+        0x56,0x8B,0x71,0x6C,0x85,0xF6,0x74,0x6B,0x83,0x79,0x64,0x00,0x74,0x65
+    };
+    known = 0;
+    __try {
+        if (g_tq.exe && memcmp((unsigned char*)g_tq.exe + 0x10A3D0, code, sizeof(code)) == 0)
+            known = 1;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {}
+    if (!known) logW("panel: quantity label layout differs; museum counters kept unchanged");
+    return known != 0;
+}
+
 int rrRestore() {
     int restored = 0;
     for (int k = 0; k < g_rrN && k < kUtProtoMax; ++k) {
         const RrSave& s = g_rrSave[k];
+        __try {
+            void** style = (void**)(s.w + kWidgetCounterStyle);
+            if (s.counterStyle && *(const unsigned*)(s.w + kUtWidgetItemId) == s.id && !*style)
+                *style = s.counterStyle;
+        } __except (EXCEPTION_EXECUTE_HANDLER) {}
         __try {   // the widget's own icon back first, if it still holds the gray one
             const TqTexture** icon = (const TqTexture**)(s.w + kUtWidgetIcon);
             if (s.iconGray && *(const unsigned*)(s.w + kUtWidgetItemId) == s.id && *icon == s.iconGray)
@@ -1706,7 +1730,7 @@ int panelItemBackgroundPre(void* widget) {
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         return -1;
     }
-    g_rrSave[g_rrN] = RrSave{w, id, foot, centred, i, nullptr, nullptr};
+    g_rrSave[g_rrN] = RrSave{w, id, foot, centred, i, nullptr, nullptr, nullptr};
     if (i < kUtProtoMax) g_rrMark[i] = g_rrCall;
     ++g_rrApplied;
     if (bare) ++g_rrSkipped;
@@ -1723,6 +1747,16 @@ void panelItemBackgroundPost(int token) {
         r[2] = s.centred.w;
         r[3] = s.centred.h;
     } __except (EXCEPTION_EXECUTE_HANDLER) {
+    }
+    if (counterStyleLayoutKnown()) {
+        __try {
+            RrSave& saved = g_rrSave[token];
+            void** style = (void**)(saved.w + kWidgetCounterStyle);
+            if (*(const unsigned*)(saved.w + kUtWidgetItemId) == saved.id) {
+                saved.counterStyle = *style;
+                *style = nullptr; // quantity draw skips; the item and string are unchanged
+            }
+        } __except (EXCEPTION_EXECUTE_HANDLER) {}
     }
     grayLend(token);   // the icon draw that follows reads [widget+0x3C]
 }

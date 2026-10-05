@@ -1,3 +1,4 @@
+#include "backend/localization.h"
 // ut_tooltip.cpp - the item rollover: the "In your collection" tooltip line.
 // Ported from the Grim Dawn mod's ut_tooltip.cpp; see ut_tooltip.h for what it is.
 // Only what Titan Quest forces was changed; each change says so ("TQ:").
@@ -756,9 +757,14 @@ void __cdecl hk_GameTextLineToString(const void* lines, void* out) {
 // ---- building the two static lines --------------------------------------------------------------
 void makeWide(MsvcWString* s, const char* ascii, unsigned short* storage, size_t storageChars) {
     memset(s, 0, sizeof(*s));
-    size_t n = strlen(ascii);
-    if (n > storageChars - 1) n = storageChars - 1;
-    for (size_t i = 0; i < n; ++i) storage[i] = (unsigned short)(unsigned char)ascii[i];
+    int converted = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, ascii, -1,
+                                       reinterpret_cast<wchar_t*>(storage), int(storageChars));
+    size_t n = converted > 0 ? size_t(converted - 1) : 0;
+    if (!converted) { // Keep compatibility with existing ANSI custom INI wording.
+        converted = MultiByteToWideChar(CP_ACP, 0, ascii, -1,
+                                       reinterpret_cast<wchar_t*>(storage), int(storageChars));
+        n = converted > 0 ? size_t(converted - 1) : 0;
+    }
     storage[n] = 0;
     s->size = n;
     if (n < 8) {
@@ -873,9 +879,9 @@ bool tooltipInit(HMODULE selfModule) {
     done = true;
 
     _snprintf_s(g_textYes, sizeof(g_textYes), _TRUNCATE, "%s",
-                textFor(g_cfg.tooltipTextYes, kDefaultTextYes));
+                textFor(g_cfg.tooltipTextYes, museum::i18n::text("museum.tooltip.collected")));
     _snprintf_s(g_textNo, sizeof(g_textNo), _TRUNCATE, "%s",
-                textFor(g_cfg.tooltipTextNo, kDefaultTextNo));
+                textFor(g_cfg.tooltipTextNo, museum::i18n::text("museum.tooltip.not_collected")));
 
     // The policy line - printed whatever the keys say, so the menu test can always see it.
     logD("tooltip: tooltip_mark=%d - the mark is five exported Game.dll detours that append one "

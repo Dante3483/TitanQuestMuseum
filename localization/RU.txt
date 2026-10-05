@@ -27,3 +27,10 @@ museum.category.artifact=Артефакты
 museum.section.sets=Комплекты
 museum.back=Назад
 museum.set_completed=Собран
+
+museum.category.formula=Формулы
+museum.category.relic=Реликвии
+museum.category.charm=Амулеты
+museum.category.scroll=Свитки
+museum.tooltip.collected=Есть в коллекции
+museum.tooltip.not_collected=Нет в коллекции

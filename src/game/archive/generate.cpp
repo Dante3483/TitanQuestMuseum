@@ -121,7 +121,7 @@ std::string inputFingerprint(const std::string& gameDir, const std::string& lang
     // same inputs, so an installation that already has a stamp regenerates once with the new
     // build instead of keeping text the DLL no longer expects. Titan Quest restarts the count
     // at 1 (catalogue.bin v2, uniq-records / uniq-groups / uniq-excluded).
-    std::string fp = "GDUT-STAMP 5\nlang=" + lang + "\n";
+    std::string fp = "GDUT-STAMP 7\nlang=" + lang + "\n";
     for (const std::string& r : rel) fp += stampLine(gameDir + "\\" + r, r);
     return fp;
 }

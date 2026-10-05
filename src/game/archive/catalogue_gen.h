@@ -46,6 +46,7 @@ struct CatalogueItem {
     std::int32_t levelRequirement = 0;
     std::int32_t itemLevel = 0;
     int footW = 0, footH = 0;      // TQ: the inventory footprint in cells (icon pixels / 32)
+    int sortTier = -1;             // artifact size or drop difficulty; -1 for equipment
     int expansion = 0;             // TQ: 0 base, 1 Immortal Throne, 2 Ragnarok, 3 Atlantis, 4 Eternal Embers
     bool bitmapFound = false;
     bool isBlueprint = false, isAugment = false, isRelic = false, isSetPiece = false;
@@ -94,7 +95,7 @@ bool packCatalogue(std::vector<CatalogueItem>& items, std::vector<std::uint8_t>&
 //                      E <record> <w> <h> per member - GD's group model without the F / P / V
 //                      page-geometry lines, which belong to the page
 //   uniq-excluded.txt  <record> TAB <reason>, one per dropped record
-// The order is GD's pages_gen order: slot order, Legendary before Epic, name, record.
+// Order: category, rarity for equipment or tier/difficulty for Other, name, item level, record.
 struct ListsOutput {
     std::string records, groups, excluded;
     std::size_t groupCount = 0;

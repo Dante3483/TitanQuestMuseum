@@ -33,7 +33,13 @@ inline std::map<std::string,std::string>& messages() {
 {"museum.category.throw","Throw"},
 {"museum.category.spear","Spear"},
 {"museum.category.bow","Bow"},
-{"museum.category.artifact","Artifact"}};
+{"museum.category.artifact","Artifact"},
+{"museum.category.formula","Formulas"},
+{"museum.category.relic","Relics"},
+{"museum.category.charm","Charms"},
+{"museum.category.scroll","Scrolls"},
+{"museum.tooltip.collected","In your collection"},
+{"museum.tooltip.not_collected","Not in your collection"}};
     return data;
 }
 inline const char* text(const char* key) {
