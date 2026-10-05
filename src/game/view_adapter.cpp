@@ -1636,7 +1636,7 @@ unsigned viewSlotIdAt(const TqSack* s, float x, float y) {
     unsigned cw = 0, ch = 0;
     if (!protoCellSize(&cw, &ch) || !cw || !ch) return 0;
     if (!(x >= 0.0f && y >= 0.0f && x < 1.0e6f && y < 1.0e6f)) return 0;   // NaN-safe
-    return protoIdAtSlotCell((int)(x / (float)cw), (int)liveVisualCell(y / (float)ch,true));
+    return protoIdAtSlotCell((int)liveVisualColumn(x / (float)cw,true), (int)liveVisualCell(y / (float)ch,true));
 }
 
 void* viewPageWindow() { return g_subWindow; }

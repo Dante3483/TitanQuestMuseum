@@ -1687,7 +1687,10 @@ int panelItemBackgroundPre(void* widget) {
         return utBgToken(-1, bare);   // no Post (the rect was not changed); skip or not
     }
     // Widget positions are local to the native page; the draw later adds its origin.
-    const float cellH=foot.h/(float)ih;
+    const float cellW=foot.w/(float)iw,cellH=foot.h/(float)ih;
+    slot.x += (liveVisualColumn((float)sc)-sc)*cellW*scale;
+    slot.w=(liveVisualColumn((float)(sc+sw))-liveVisualColumn((float)sc))*cellW;
+    centred.x=slot.x+utSlotRound((slot.w-foot.w)*scale*0.5f);
     slot.y += (liveVisualCell((float)sr)-sr)*cellH*scale;
     slot.h=(liveVisualCell((float)(sr+sh))-liveVisualCell((float)sr))*cellH;
     centred.y=slot.y+(slot.h-foot.h)*scale*0.5f;
@@ -1883,7 +1886,7 @@ void panelPageDrawPre(void* page, void* canvas, const void* origin, int pass) {
     if (!panelSlotGrid(&gr)) return;   // not on a grid the items do not share
     if (plates) {
         // Erase the old inventory-cell seams underneath the new slot grid.
-        fillRect(c,gr.x,gr.y,gr.w,gr.h,kPlateFill);
+        fillRect(c,gr.x,gr.y,gr.w,gr.h,kPadBack);
         const int n = protoCount();
         // Museum owns the background; character equipment textures include unwanted borders.
         for (int i=0;i<n;++i) {

@@ -200,7 +200,11 @@ bool collectionInitialize(const char* path, bool ownedOnly) {
                     items.push_back({(int)items.size(),item.footW,item.footH});
                 }
                 if(items.empty()) continue;
-                g.pages=gdut::packSlots(items,16,15,&g.placed,&g.slot);
+                // A set mixes footprints: reserve half a native cell on each side of
+                // its largest member. Keep record footprints unchanged for prototypes.
+                auto paddedSlots=items;
+                for(auto& slot:paddedSlots) { ++slot.w; ++slot.h; }
+                g.pages=gdut::packSlots(paddedSlots,16,15,&g.placed,&g.slot);
                 g.owned.assign(items.size(),0);g.match.assign(items.size(),0);
                 gs->push_back(g);
             }
@@ -426,6 +430,7 @@ int liveWindowRows() { return g_windowRows; }
 int liveLeftover(UtCellRect* out, int cap) {
     if (!liveActive() || !out || cap < 3) return 0;
     const Group& g = (*g_groups)[(size_t)g_shownGroup];
+    if(g.label.compare(0,4,"Set:")==0) return 0;
     gdut::CellRect r[3];
     const int n = gdut::windowLeftover(g.slot, g_shownCount, g_shownPage, gdut::kHostCols,
                                        gdut::kHostRows, r);
@@ -474,8 +479,19 @@ int livePagePlaces(UtProtoPlace* out, int cap) {
     int n = 0;
     for (int i = 0; i < m; ++i) {
         gdut::PackPlacement p = placed[i];
-        int slotHeight = 0;
-        gdut::fillWindowSlot(gr.slot, gdut::kHostRows, gr.fh[(size_t)p.index], &p, &slotHeight);
+        int slotWidth = gr.slot.w;
+        int slotHeight = gr.slot.h;
+        if(gr.label.compare(0,4,"Set:")==0) {
+            // Spread unused native columns across the set's slots; keep icon footprints intact.
+            const int column=p.slotCol/gr.slot.w;
+            const int left=column*gdut::kHostCols/gr.slot.cols;
+            const int right=(column+1)*gdut::kHostCols/gr.slot.cols;
+            p.slotCol=left;slotWidth=right-left;
+            p.col=left+(slotWidth-gr.fw[(size_t)p.index])/2;
+        }
+        // Set cells use the maximum member footprint without stretching rows over the canvas.
+        if(gr.label.compare(0,4,"Set:")!=0)
+            gdut::fillWindowSlot(gr.slot, gdut::kHostRows, gr.fh[(size_t)p.index], &p, &slotHeight);
         out[n].record = gr.records[(size_t)p.index].c_str();
         out[n].col = p.col;
         out[n].row = p.row;
@@ -483,7 +499,7 @@ int livePagePlaces(UtProtoPlace* out, int cap) {
         out[n].h = gr.fh[(size_t)p.index];
         out[n].slotCol = p.slotCol;
         out[n].slotRow = p.slotRow;
-        out[n].slotW = gr.slot.w;
+        out[n].slotW = slotWidth;
         out[n].slotH = slotHeight;
         g_placeRec[n] = out[n].record;   // the highlight's record -> index map
         g_placeGroup[n]=g;
@@ -505,6 +521,7 @@ const char* liveStatus() { return g_status; }
 // Convert integer sack row boundaries to equal fractional visual row heights.
 float liveVisualCell(float cell, bool inverse) {
     if (!liveActive() || g_shownGroup < 0 || g_shownGroup >= (int)g_groups->size()) return cell;
+    if((*g_groups)[(size_t)g_shownGroup].label.compare(0,4,"Set:")==0) return cell;
     const auto& g=(*g_groups)[(size_t)g_shownGroup].slot;
     if (g.rows<=0 || g.h<=0 || cell<0 || cell>15) return cell;
     for (int i=0;i<g.rows;++i) {
@@ -513,6 +530,21 @@ float liveVisualCell(float cell, bool inverse) {
         const float va=15.0f*i/g.rows, vb=15.0f*(i+1)/g.rows;
         const float lo=inverse?va:a, hi=inverse?vb:b;
         if (cell<=hi) return (inverse?a:va)+(cell-lo)/(hi-lo)*(inverse?b-a:vb-va);
+    }
+    return cell;
+}
+
+// Map native integer column bounds to equally spaced visual set columns and back.
+float liveVisualColumn(float cell,bool inverse) {
+    if(!liveActive() || g_shownGroup<0 || g_shownGroup>=liveGroupCount() || cell<0 || cell>16) return cell;
+    const auto& group=(*g_groups)[(size_t)g_shownGroup];
+    if(group.label.compare(0,4,"Set:")!=0 || group.slot.cols<=0) return cell;
+    const int columns=group.slot.cols;
+    for(int i=0;i<columns;++i) {
+        const float a=(float)(i*16/columns),b=(float)((i+1)*16/columns);
+        const float va=16.0f*i/columns,vb=16.0f*(i+1)/columns;
+        const float lo=inverse?va:a,hi=inverse?vb:b;
+        if(cell<=hi) return (inverse?a:va)+(cell-lo)/(hi-lo)*(inverse?b-a:vb-va);
     }
     return cell;
 }

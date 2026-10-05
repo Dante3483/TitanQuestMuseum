@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cwchar>
 #include <vector>
+#include <string>
 using namespace museum;
 using namespace museum::ui;
 namespace {
@@ -44,6 +45,33 @@ MuseumState fixture(Section section) {
 }
 }
 int main() {
+    {
+        CollectionSnapshot source;
+        source.mode=Mode::Collection;source.setsList=true;source.categoryCount=1;
+        source.categories[0]={0,Section::Sets,"Example set",5,false,true,3};
+        auto state=makeMuseumState(source);
+        MuseumPanel panel;panel.arrange({100,100,600,600},1,state,{120,200,560,450});
+        check(state.activeSection==Section::Sets,"set membership routes to the Sets section");
+        check(categorySection("Set:Example")==Section::Sets,"set labels remain separate from equipment types");
+    }
+
+    {
+        CollectionSnapshot source;
+        source.categoryCount=2;source.selectedCategory=1;source.shownCategory=0;
+        source.categories[0]={0,Section::Sets,"Old set",5,false,true,3};
+        source.categories[1]={1,Section::Equipment,"Torso",10,false,true,4};
+        auto state=makeMuseumState(source);
+        check(std::string(state.shownCategoryName)=="Torso","switching section clears stale set caption before native rebuild");
+        state=fixture(Section::Equipment);state.searchFocused=true;
+        MuseumPanel panel;panel.arrange({100,100,600,600},1,state);
+        for(unsigned long ticks : {0ul,500ul}) {
+            Recorder recorder;panel.draw(recorder,state,-1,-1,ticks);
+            bool placeholder=false;
+            for(const auto& draw:recorder.draws) if(draw.text==L"Search") placeholder=true;
+            check(!placeholder,"empty focused search never blinks back to placeholder");
+        }
+    }
+
     {
         wchar_t decoded[32];
         widen("Поиск",decoded,32);

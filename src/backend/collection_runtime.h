@@ -123,3 +123,5 @@ namespace integration { int liveGroupOwnedCount(int group); }
 namespace integration { bool liveGroupSearchMatch(int group); }
 
 namespace integration { void liveSearchSetNameMatch(int group,bool match); }
+
+namespace integration { float liveVisualColumn(float cell,bool inverse=false); }
