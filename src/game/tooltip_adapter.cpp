@@ -842,14 +842,14 @@ void borrowedSourceLine(SourceLines& entry,size_t index,unsigned cls,const char*
 const unsigned char* sourceLines(const char* record,size_t& count) {
     auto found=g_sources.find(sourceKey(record));if(found==g_sources.end()){
         auto& entry=g_sourceStatusLines;
-        if(!entry.prepared){entry.prepared=true;entry.count=2;entry.storage.resize(1);memcpy(entry.lines.data(),g_lineYes,kLineSize);
+        if(!entry.prepared){entry.prepared=true;entry.count=2;entry.storage.resize(1);memcpy(entry.lines.data(),g_lineNo,kLineSize);
             borrowedSourceLine(entry,1,0x19,tooltipSourceStatus());}
         count=entry.count;return entry.lines.data();
     }
     SourceLines& entry=found->second;
     const size_t limit=(GetAsyncKeyState(VK_SHIFT)&0x8000)?10:3;
     if(!entry.prepared || entry.visibleLimit!=limit) {
-        entry.prepared=true;entry.visibleLimit=limit;entry.count=1;entry.storage.resize(10);memcpy(entry.lines.data(),g_lineYes,kLineSize);
+        entry.prepared=true;entry.visibleLimit=limit;entry.count=1;entry.storage.resize(10);memcpy(entry.lines.data(),g_lineNo,kLineSize);
         for(size_t index=0;index<entry.rows.size() && index<limit;++index) {
             char text[1024];if(!tooltipSourceRow(record,index,text,sizeof(text)))break;
             borrowedSourceLine(entry,entry.count,0x19,text);++entry.count;
@@ -882,7 +882,8 @@ void __cdecl hk_GameTextLineToString(const void* lines, void* out) {
     borrowed.end = nullptr;
     borrowed.cap = nullptr;
     size_t extraCount=1;
-    if(extra==g_lineYes)extra=sourceLines(sourceRecord,extraCount);
+    // Collected items keep only their collection marker; sources help find missing items.
+    if(extra==g_lineNo)extra=sourceLines(sourceRecord,extraCount);
     if (!tooltipSwapBuildMany(lines, extra, extraCount, &owned, &borrowed)) {
         probePresentAdd(probeNow() - t0);
         if (o_ToString) o_ToString(lines, out);
