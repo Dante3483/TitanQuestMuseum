@@ -11,6 +11,7 @@
 #include "core/paths.h"
 
 namespace museum::game {
+namespace { bool setsList=false; int setsOffset=0; }
 bool initializeCollection(void* module) {
     char path[MAX_PATH];
     if (!integration::utModFile(static_cast<HMODULE>(module),"uniq-groups.txt",path,sizeof(path))) return false;
@@ -25,6 +26,8 @@ bool initializeCollection(void* module) {
 CollectionSnapshot readCollection() {
     using namespace integration;
     CollectionSnapshot s;
+    if(categorySection(liveGroupLabel(liveWantedGroup()))!=Section::Sets) setsList=false;
+    s.setsList=setsList && viewOn(); s.setsOffset=setsOffset;
     s.mode = viewOn() ? Mode::Collection : Mode::Transfer;
     s.selectedCategory = liveWantedGroup();
     s.shownCategory = liveShownGroup();
@@ -39,15 +42,23 @@ CollectionSnapshot readCollection() {
         const char* label = liveGroupLabel(i);
         c.caption = categoryCaption(label); c.section = categorySection(label);
         c.total = liveGroupEntries(i);
-        c.searchMatch = (marks & (1u << i)) != 0;
-        c.indexed = g_cfg.searchButtons && (indexed & (1u << i)) != 0;
+        c.searchMatch = c.section==Section::Sets ? liveGroupSearchMatch(i) : i<32 && (marks & (1u << i)) != 0;
+        c.discovered=liveGroupOwnedCount(i);
+        c.indexed = i<32 && g_cfg.searchButtons && (indexed & (1u << i)) != 0;
     }
     s.categoryCounts.known = ownedLabel(&s.categoryCounts.owned, &s.categoryCounts.total);
     if (!s.categoryCounts.known) s.categoryCounts.total = liveGroupEntries(s.shownCategory);
+    if(s.setsList) {
+        s.categoryCounts.owned=0;s.categoryCounts.total=0;
+        for(int i=0;i<s.categoryCount;++i) if(s.categories[i].section==Section::Sets) {
+            if(s.categories[i].total>0 && s.categories[i].discovered==s.categories[i].total) ++s.categoryCounts.owned;
+            ++s.categoryCounts.total;
+        }
+    }
     s.allCounts.known = ownedLabelAll(&s.allCounts.owned, &s.allCounts.total);
     if (!s.allCounts.known) {
         s.allCounts.total = 0;
-        for (int i = 0; i < s.categoryCount; ++i) s.allCounts.total += s.categories[i].total;
+        for (int i = 0; i < s.categoryCount; ++i) if(s.categories[i].section!=Section::Sets) s.allCounts.total += s.categories[i].total;
     }
     if (s.mode == Mode::Collection) searchLabel(s.searchStatus, sizeof(s.searchStatus));
     else {
@@ -69,9 +80,17 @@ void apply(Action a) {
     case ActionKind::ShowCollection: viewRequest(kUtViewReqOn); break;
     case ActionKind::ToggleOwned: liveToggleOwnedOnly(); break;
     case ActionKind::SelectCategory:
+        setsList=false;
         if (liveSelectGroup(a.value)) viewRequest(kUtViewReqOn);
         break;
+    case ActionKind::BackToSets: setsList=true; break;
+    case ActionKind::ScrollSets: {
+        int count=0;for(int i=0;i<liveGroupCount();++i) if(categorySection(liveGroupLabel(i))==Section::Sets) ++count;
+        setsOffset=(std::max)(0,(std::min)((std::max)(0,((count+1)/2-setsPerSheet/2)*2),setsOffset+a.value*2));
+        break;
+    }
     case ActionKind::SelectSection:
+        setsList=static_cast<Section>(a.value)==Section::Sets;
         for (int i = 0; i < liveGroupCount(); ++i)
             if (categorySection(liveGroupLabel(i)) == static_cast<Section>(a.value)) {
                 liveSelectGroup(i); viewRequest(kUtViewReqOn); break;
@@ -92,3 +111,5 @@ void apply(Action a) {
 }
 void blurSearch() { integration::searchFieldBlur("a click outside the field"); }
 }
+
+namespace museum::game { bool setsBrowseActive() { return setsList && integration::viewOn(); } }

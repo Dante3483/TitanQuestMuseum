@@ -1,3 +1,4 @@
+#include "backend/model/catalogue.h"
 // ut_live.cpp - the collection page model (see ut_live.h). TQ port of GD's ut_live.cpp: the group
 // table, the want/shown pair written by the input and read by the tick, and the wheel / key /
 // select entry points keep GD's names and semantics; the reagent-box capture and the display
@@ -11,6 +12,7 @@
 #include "backend/collection_runtime.h"
 
 #include <stdio.h>
+#include <cstring>
 
 #include <string>
 #include <vector>
@@ -40,6 +42,7 @@ struct Group {
     std::vector<unsigned char> owned;   // the OWN filter's flags (sized once, at init)
     int ownedCount = 0;
     std::vector<unsigned char> match;   // the search's flags (sized once, at init)
+    bool nameMatch = false;
     int hitCount = 0;                   // the matches that pass OWN, while a query stands
 };
 
@@ -76,6 +79,7 @@ volatile LONG g_searchGroups = 0;
 // the last built page: the record and its index in the shown group, per place (the highlight)
 const char* g_placeRec[kUtProtoMax];
 int g_placeK[kUtProtoMax];
+int g_placeGroup[kUtProtoMax];
 int g_placeN = 0;
 
 bool readAll(const char* path, std::string* out) {
@@ -102,8 +106,10 @@ void searchRecompute() {
         const int n = (int)g.records.size();
         g.hitCount = g_searchOn && g_ownKnown ? utSearchCount(g.owned.data(), g.match.data(), n, own) : 0;
         if (!g_searchOn) continue;
-        found += g.hitCount;
-        if (g.hitCount > 0) ++groups;
+        if (g.label.compare(0,4,"Set:")!=0) {
+            found += g.hitCount;
+            if (g.hitCount > 0) ++groups;
+        }
         const bool indexed = gi < 32 && (g_searchIndexed & (1u << (unsigned)gi)) != 0;
         if (g_ownKnown && gi < 32 && utSearchGroupMarked(g.owned.data(), g.match.data(), n, own, indexed))
             marks |= 1u << (unsigned)gi;
@@ -169,6 +175,36 @@ bool collectionInitialize(const char* path, bool ownedOnly) {
             g_pagesTotal += g.pages;
             gs->push_back(g);
         }
+        // Immutable alternate views of existing items: never add these to completion totals.
+        gdut::Catalogue catalogue;
+        const std::string groupPath(path);
+        const auto slash=groupPath.find_last_of("/\\");
+        const std::string cataloguePath=groupPath.substr(0,slash+1)+"catalogue.bin";
+        std::string why;
+        if (catalogue.loadFromFile(cataloguePath,&why)) {
+            for (const auto& set : catalogue.sets()) {
+                if (!set.memberCount || gs->size()>=160) continue;
+                Group g; g.label="Set:"+std::string(set.name);
+                std::vector<gdut::PackItem> items;
+                for (unsigned k=0;k<set.memberCount;++k) {
+                    const auto& item=catalogue.item(set.members[k]);
+                    const std::string record(item.record);
+                    bool visible=false;
+                    for (const auto& base:*gs) {
+                        if (base.label.compare(0,4,"Set:")==0) break;
+                        for(const auto& r:base.records) if(r==record) {visible=true;break;}
+                        if(visible) break;
+                    }
+                    if(!visible) continue;
+                    g.records.push_back(record);g.fw.push_back(item.footW);g.fh.push_back(item.footH);
+                    items.push_back({(int)items.size(),item.footW,item.footH});
+                }
+                if(items.empty()) continue;
+                g.pages=gdut::packSlots(items,16,15,&g.placed,&g.slot);
+                g.owned.assign(items.size(),0);g.match.assign(items.size(),0);
+                gs->push_back(g);
+            }
+        } else logW("sets: catalogue unavailable: %s",why.c_str());
         g_groups = gs;
         g_ownedOnly = ownedOnly;   // the start state (configReload ran before)
         logI("live: %zu groups, %zu records on %d pages of 16 x 15, one slot size per group "
@@ -291,8 +327,15 @@ bool liveSearchHighlight(int i, const char* record) {
     if (!g_searchOn || !g_groups || !record || g_shownGroup < 0 ||
         g_shownGroup >= (int)g_groups->size())
         return false;
-    const Group& g = (*g_groups)[(size_t)g_shownGroup];
-    const int k = utSearchPlaceIndex(g_placeRec, g_placeK, g_placeN, i, record);
+    int place=i;
+    if(place<0 || place>=g_placeN || !g_placeRec[place] || std::strcmp(g_placeRec[place],record)!=0) {
+        place=-1;
+        for(int j=0;j<g_placeN;++j) if(g_placeRec[j] && std::strcmp(g_placeRec[j],record)==0) {place=j;break;}
+    }
+    if(place<0) return false;
+    const int gi=g_placeGroup[place];
+    const Group& g = (*g_groups)[(size_t)gi];
+    const int k = utSearchPlaceIndex(g_placeRec, g_placeK, g_placeN, place, record);
     return g_ownKnown && k>=0 && k<(int)g.owned.size() && g.owned[(size_t)k] &&
            utSearchHighlight(g.match.data(), (int)g.match.size(), k, true);
 }
@@ -443,6 +486,7 @@ int livePagePlaces(UtProtoPlace* out, int cap) {
         out[n].slotW = gr.slot.w;
         out[n].slotH = slotHeight;
         g_placeRec[n] = out[n].record;   // the highlight's record -> index map
+        g_placeGroup[n]=g;
         g_placeK[n] = p.index;
         ++n;
     }
@@ -474,3 +518,9 @@ float liveVisualCell(float cell, bool inverse) {
 }
 
 }  // namespace integration
+
+namespace integration { int liveGroupOwnedCount(int g) { return g_ownKnown && g_groups && g>=0 && g<(int)g_groups->size()?(*g_groups)[(size_t)g].ownedCount:0; } }
+
+namespace integration { bool liveGroupSearchMatch(int g) { return g_searchOn && g_groups && g>=0 && g<liveGroupCount() && ((*g_groups)[(size_t)g].nameMatch || (*g_groups)[(size_t)g].hitCount>0); } }
+
+namespace integration { void liveSearchSetNameMatch(int g,bool match) { if(g_groups && g>=0 && g<liveGroupCount()) (*g_groups)[(size_t)g].nameMatch=match; } }

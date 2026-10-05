@@ -222,7 +222,9 @@ void hideAll() {
 void layout(const PlateGeometry& geometry, bool) {
     if (g_frameVerdict != 1) { hideAll(); return; }
     g_controller.refresh();
-    g_museumPanel.arrange({g_frame.x,g_frame.y,g_frame.w,g_frame.h},geometry.scale,g_controller.state());
+    UtRectF viewport={}; panelFrameGrid(&viewport);
+    g_museumPanel.arrange({g_frame.x,g_frame.y,g_frame.w,g_frame.h},geometry.scale,g_controller.state(),
+                         {viewport.x,viewport.y,viewport.w,viewport.h});
     const auto rect=g_museumPanel.layout().panel;
     g_ground={rect.x,rect.y,rect.w,rect.h};
     g_groundOk=g_museumPanel.visible();
@@ -273,7 +275,7 @@ void drawPlateFrames(TqCanvas* c) {
 
 // Shared borders: one boundary per row/column, independent of item textures.
 void drawMuseumGrid(TqCanvas* canvas) {
-    if (!viewOn() || !g_cfg.slotPlates || !plateTransferVisible()) return;
+    if (museum::game::setsBrowseActive() || !viewOn() || !g_cfg.slotPlates || !plateTransferVisible()) return;
     UtRectF grid;
     if (!panelSlotGrid(&grid)) return;
     bool vertical[17][15]={},horizontal[16][16]={};
@@ -418,7 +420,7 @@ bool drawPad(TqCanvas* c);
 // the plate frames stay here as before).
 // Anonymous rollover: no name, description or stat builder is invoked.
 void drawUnknownRollover(TqCanvas* canvas) {
-    if (!viewOn() || !g_cursorOk || !g_groundOk || !plateTransferVisible()) return;
+    if (museum::game::setsBrowseActive() || !viewOn() || !g_cursorOk || !g_groundOk || !plateTransferVisible()) return;
     UtRectF grid;
     if (!panelFrameGrid(&grid)) return;
     for (int i=0;i<protoCount();++i) {
@@ -1024,6 +1026,10 @@ bool panelInput(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         // whole notches from the raw delta (utWheelAccumulate: the remainder is kept, a
         // direction change drops it) - a delta under one notch is no longer silently dropped
         const int delta = GET_WHEEL_DELTA_WPARAM(wp);
+        if(museum::game::setsBrowseActive()) {
+            if(delta) g_controller.dispatch({museum::ActionKind::ScrollSets,delta>0?-1:1});
+            return true;
+        }
         if (ctrl) {   // the cycle (wheel up = back, down = forward), Transfer is a stop
             g_wheelPlain.sum = 0;
             const int notches = utWheelAccumulate(g_wheelCtrl, delta, WHEEL_DELTA);
@@ -1046,6 +1052,9 @@ bool panelInput(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         // while the field has the focus the keys are its text (the key gate takes them from the
         // engine): the view hotkey and PgUp / PgDn do nothing here
         if (searchFieldFocused()) return false;
+        if(museum::game::setsBrowseActive() && (wp==VK_PRIOR || wp==VK_NEXT)) {
+            g_controller.dispatch({museum::ActionKind::ScrollSets,wp==VK_PRIOR?-1:1});return true;
+        }
         if (g_cfg.viewHotkey && (int)wp == g_cfg.viewHotkey) {
             if (!(lp & (1 << 30))) viewRequestToggle();   // not the auto-repeat
             return true;
@@ -1822,7 +1831,7 @@ bool panelPadClaimsPress() {
     if (!g_groundOk || now - g_drawnAt >= 500) return false;
     float x = 0.0f, y = 0.0f;
     if (!panelCursorNow(&x, &y)) return false;
-    return utRectHas(g_ground, x, y);
+    return utRectHas(g_ground, x, y) || (museum::game::setsBrowseActive() && utRectHas(g_frameGrid,x,y));
 }
 
 namespace {

@@ -1,3 +1,4 @@
+#include "game/collection_bridge.h"
 // hooks.cpp - the detours.
 //
 // Rules every detour here obeys:
@@ -851,6 +852,7 @@ unsigned __fastcall hk_GetItemUnderPoint(const TqSack* s, void* /*edx*/, float x
         }
         return id;
     }
+    if (hover.valid && museum::game::setsBrowseActive()) return 0;
     if (hover.valid) {
         UT_LE_SAVE;
         __try {

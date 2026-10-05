@@ -5,4 +5,5 @@ bool initializeCollection(void* selfModule);
 CollectionSnapshot readCollection();
 void apply(Action action);
 void blurSearch();
+bool setsBrowseActive();
 }

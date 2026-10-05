@@ -294,6 +294,7 @@ void computeAll(bool force) {
     int total = 0, owned = 0;
     const int groups = liveGroupCount();
     for (int g = 0; g < groups; ++g) {
+        if (strncmp(liveGroupLabel(g),"Set:",4)==0) continue;
         const int n = liveGroupEntries(g);
         for (int k = 0; k < n; ++k) {
             ++total;

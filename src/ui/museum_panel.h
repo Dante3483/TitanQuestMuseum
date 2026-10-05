@@ -4,7 +4,7 @@
 namespace museum::ui {
 class MuseumPanel {
 public:
-    void arrange(Rect caravan,float scale,const MuseumState& state);
+    void arrange(Rect caravan,float scale,const MuseumState& state,Rect viewport = {});
     void hide();
     int hit(float x,float y) const;
     Action action(int control) const;
@@ -17,7 +17,11 @@ public:
 private:
     MuseumStyle style_;
     PanelLayout layout_;
-    Button buttons_[maxCategories+6];
+    Button buttons_[maxCategories+10];
+    Rect viewport_;
+    bool setsList_=false;
+    int cardFirst_=0,cardCount_=0;
+    int cardOwned_[setsPerSheet]={},cardTotal_[setsPerSheet]={};
     int buttonCount_ = 0;
     bool visible_ = false, searchShown_ = false;
     float scale_ = 1;

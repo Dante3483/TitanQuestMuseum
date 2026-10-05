@@ -24,3 +24,6 @@ museum.category.throw=Throw
 museum.category.spear=Spear
 museum.category.bow=Bow
 museum.category.artifact=Artifact
+museum.section.sets=Sets
+museum.back=Back
+museum.set_completed=Complete

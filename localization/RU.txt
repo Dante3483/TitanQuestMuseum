@@ -24,3 +24,6 @@ museum.category.throw=Метательное
 museum.category.spear=Копья
 museum.category.bow=Луки
 museum.category.artifact=Артефакты
+museum.section.sets=Комплекты
+museum.back=Назад
+museum.set_completed=Собран

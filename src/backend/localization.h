@@ -5,6 +5,9 @@
 namespace museum::i18n {
 inline std::map<std::string,std::string>& messages() {
     static std::map<std::string,std::string> data={
+{"museum.section.sets","Sets"},
+{"museum.back","Back"},
+{"museum.set_completed","Complete"},
 {"museum.section.equipment","Equipment"},
 {"museum.section.weapons","Weapons"},
 {"museum.section.other","Other"},

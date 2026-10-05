@@ -117,3 +117,9 @@ const char* liveStatus();
 }  // namespace integration
 
 namespace integration { float liveVisualCell(float cell, bool inverse=false); }
+
+namespace integration { int liveGroupOwnedCount(int group); }
+
+namespace integration { bool liveGroupSearchMatch(int group); }
+
+namespace integration { void liveSearchSetNameMatch(int group,bool match); }

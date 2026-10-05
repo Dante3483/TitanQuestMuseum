@@ -17,14 +17,17 @@ constexpr CategoryName names[] = {
 };
 }
 Section categorySection(const char* label) {
+    if(label && std::strncmp(label,"Set:",4)==0) return Section::Sets;
     for (const auto& n : names) if (label && std::strcmp(n.label, label) == 0) return n.section;
     return Section::Other;
 }
 const char* categoryCaption(const char* label) {
+    if(label && std::strncmp(label,"Set:",4)==0) return label+4;
     for (const auto& n : names) if (label && std::strcmp(n.label, label) == 0) return i18n::text(n.caption);
     return label ? label : "?";
 }
 const char* sectionCaption(Section s) {
+    if(s==Section::Sets) return i18n::text("museum.section.sets");
     return i18n::text(s == Section::Equipment ? "museum.section.equipment" : s == Section::Weapons ? "museum.section.weapons" : "museum.section.other");
 }
 MuseumState makeMuseumState(const CollectionSnapshot& source) {
@@ -37,14 +40,15 @@ MuseumState makeMuseumState(const CollectionSnapshot& source) {
     for (int i = 0; i < state.categoryCount; ++i) {
         const auto& c = state.categories[i];
         const int section=static_cast<int>(c.section);
-        if (source.searchText[0] && c.searchMatch && section>=0 && section<3)
+        if (source.searchText[0] && c.searchMatch && section>=0 && section<4)
             state.sectionSearchMatch[section]=true;
         if (c.id == state.selectedCategory) state.activeSection = c.section;
-        if (c.id == state.shownCategory) state.shownCategoryName = c.caption;
+        if (c.id == state.selectedCategory) state.shownCategoryName = c.caption;
     }
     for (int i = 0; i < state.categoryCount; ++i)
         if (state.categories[i].section == state.activeSection)
             state.sectionCategories[state.sectionCategoryCount++] = state.categories[i];
+    if(state.activeSection==Section::Sets && state.setsList) state.shownCategoryName=sectionCaption(Section::Sets);
     return state;
 }
 } // namespace museum
