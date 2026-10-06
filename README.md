@@ -1,5 +1,7 @@
 # Titan Quest Museum
 
+Current release: **1.0.2** (local Git tag `v1.0.2`).
+
 Standalone native x86 mod for Titan Quest Anniversary Edition, with Discovery,
 Monster Infrequents, Owned filtering, property Search, wheel paging and a new
 four-row caravan extension panel.
@@ -31,3 +33,9 @@ The standalone viewer key is [view] viewer_hotkey=67 (Windows VK_C). Set it to 0
 Viewer search keeps items in place and highlights matches in blue, including categories and set cards. It shares the Museum property index and also searches the current best drop source name/details/displayed chance. The property index fills in the background; source calculations are unchanged.
 
 The viewer remembers category/set/favorites mode, Owned filter, query, category-list offset and item row between openings in the current game process, separately per journal collection set. Reopening clamps offsets to the current list. Item name/property matches require a stored journal instance; set names and contextual sources remain searchable for unknown items. The Shift comparison experiment was removed.
+
+Viewer hover borders use one blue colour. Unknown item question marks use the
+game's native item name colour, including Rare equipment and artifacts. Colours
+are cached, with at most one missing record resolved per game Update.
+
+See [release notes](research/RELEASE_1.0.2.md) for scope and verification limits.

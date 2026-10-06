@@ -44,6 +44,8 @@
 
 #include <string>
 #include <vector>
+#include <map>
+#include <array>
 
 #include "game/hooks.h"
 #include "game/game_api.h"
@@ -519,6 +521,16 @@ int captureItem(TqItem* item, const void* player, const char* record, std::strin
     return kCapOk;
 }
 
+std::map<std::string,std::array<float,3>> g_viewerItemColors;
+std::string g_viewerColorRequest;
+bool g_viewerColorFault=false;
+bool viewerNativeColor(const TqItem* item,TqColorF* color) {
+    __try {
+        TqGameEngine* ge=gameEngine();
+        return ge && g_tq.ItemGetActualClassification && g_tq.GameGetItemColor &&
+            g_tq.GameGetItemColor(ge,g_tq.ItemGetActualClassification(item),color);
+    } __except(EXCEPTION_EXECUTE_HANDLER) { return false; }
+}
 int captureOne(const char* record, const void* player, std::string* out, UtSearchCounts* c,
                Capture* cap) {
     static UtReplica rep;   // ~2 KB
@@ -544,6 +556,8 @@ int captureOne(const char* record, const void* player, std::string* out, UtSearc
         cap->why = "CreateItem gave no item";
         return kCapUnindexable;
     }
+    TqColorF color={0.85f,0.78f,0.56f,1};
+    if(viewerNativeColor(item,&color))g_viewerItemColors[record]={color.r,color.g,color.b};
     const int rc = captureItem(item, player, record, out, c, cap);
     if (rc == kCapFault) {   // the capture's own fault is the one reported
         protoDestroyLoose(item);
@@ -1076,6 +1090,24 @@ bool syncGroup(int group, const char* how, bool inBuild) {
 
 void searchTick(bool worldUp) {
     viewerTooltipTick(worldUp);
+    if(!worldUp){g_viewerItemColors.clear();g_viewerColorRequest.clear();}
+    if(worldUp && panelViewerActive() && !g_viewerColorFault && !g_viewerColorRequest.empty() && haveBindings()) {
+        bool fault=false;const void* player=mainPlayer(&fault);
+        if(player && !fault) {
+            const std::string record=g_viewerColorRequest;g_viewerColorRequest.clear();
+            UtReplica rep;unsigned id=0;const char* createFault=nullptr;
+            TqItem* item=utReplicaBuild(&rep,record.c_str())?protoCreateLoose(rep,&id,&createFault):nullptr;
+            TqColorF color={0.85f,0.78f,0.56f,1};
+            if(item && id && !createFault && viewerNativeColor(item,&color))
+                g_viewerItemColors[record]={color.r,color.g,color.b};
+            const bool destroyed=!item || protoDestroyLoose(item);
+            if(createFault || !destroyed) {
+                g_viewerColorFault=true;
+                logW("viewer: native item colour capture failed; further colour captures disabled");
+            }
+            if(!g_viewerItemColors.count(record))g_viewerItemColors[record]={0.85f,0.78f,0.56f};
+        }
+    }
     if (InterlockedExchange(&g_gateFault, 0)) goOff("the key gate's event read");
     fieldTick(worldUp);   // the blur paths, before anything returns
     if (!liveActive() || off()) return;
@@ -1196,6 +1228,15 @@ bool searchViewerMatch(int group,int entry,const std::string& query) {
     return g_ix->state[index]==kIndexed && utSearchHit(g_ix->text[index],query);
 }
 
+bool searchViewerItemColor(const char* record,float* r,float* g,float* b) {
+    if(!record || !*record || !r || !g || !b)return false;
+    const auto found=g_viewerItemColors.find(record);
+    if(found==g_viewerItemColors.end()) {
+        if(!g_viewerColorFault && g_viewerColorRequest.empty())g_viewerColorRequest=record;
+        return false;
+    }
+    *r=found->second[0];*g=found->second[1];*b=found->second[2];return true;
+}
 void searchViewerTooltipClear() {
     g_viewerTooltipRecord.clear();g_viewerTooltipSeq=0;
     g_viewerTooltipPending=false;g_viewerTooltipReady=false;g_viewerTooltipLines.clear();

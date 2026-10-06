@@ -455,17 +455,18 @@ void viewerDraw() {
         const int index=g_viewerRow*6+slot;if(index>=int(g_viewerEntries.size()))break;
         const auto& entry=g_viewerEntries[size_t(index)];const auto& info=*entry.info;
         const float x=212+float(slot%6)*86,y=98+float(slot/6)*120;
-        const Color color=info.classification==gdut::Classification::Legendary?Color{0.62f,0.32f,0.88f,1}:Color{0.18f,0.64f,0.92f,1};
+        Color color={0.85f,0.78f,0.56f,1};
+        searchViewerItemColor(std::string(info.record).c_str(),&color.r,&color.g,&color.b);
         renderer.fill(rect(x+3,y+3,80,114),entry.count?Color{color.r*0.18f,color.g*0.18f,color.b*0.18f,1}:Color{0.18f,0.16f,0.12f,1});
         const bool matched=viewerRecordMatch(entry.group,entry.entry,needle);
         if(matched)renderer.fill(rect(x+3,y+3,80,114),{0.15f,0.30f,0.40f,1});
         if(viewerHit(mx,my,x,y,86,120))hoveredItem=index;
-        if(index==hoveredItem)renderer.outline(rect(x+3,y+3,80,114),color,s);
+        if(index==hoveredItem)renderer.outline(rect(x+3,y+3,80,114),{0.38f,0.79f,1,1},s);
         const auto* texture=viewerTexture(info,loaded);
         if(texture && g_tq.CanvasRenderRectTex && g_tq.TextureGetWidth && g_tq.TextureGetHeight) {
             viewerDrawTexture(canvas,texture,x,y,s,entry.count!=0,info.footW==1 && info.footH==1);
         }
-        if(!entry.count)label(x+8,y+98,70,18,L"???",{0.5f,0.48f,0.42f,1});
+        if(!entry.count)label(x+8,y+98,70,18,L"???",color);
         if(matched)renderer.outline(rect(x+3,y+3,80,114),{0.38f,0.79f,1,1},2*s);
         const bool favorite=g_viewerFavoriteRecords.count(std::string(info.record))!=0;
         const TqColor background=matched?TqColor{0.15f,0.30f,0.40f,1}:entry.count?TqColor{color.r*0.18f,color.g*0.18f,color.b*0.18f,1}:TqColor{0.18f,0.16f,0.12f,1};

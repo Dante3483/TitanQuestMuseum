@@ -404,6 +404,8 @@ struct ViewerTooltipLine { std::wstring text; unsigned cls; };
 const std::vector<ViewerTooltipLine>* searchViewerTooltip(const char* record);
 void searchViewerTooltipClear();
 bool searchViewerTooltipPending();
+// Cached native name colour; missing records are resolved on Update, never during draw.
+bool searchViewerItemColor(const char* record,float* r,float* g,float* b);
 // Any thread (the pad draws them): the marked groups (bit i = group i), 0 while no query stands
 // or search_buttons=0; whether a query stands; and the label's words ("indexing k/1588",
 // "found N") with their short forms for a narrow box ("k/1588", "=N"), all empty while no query
