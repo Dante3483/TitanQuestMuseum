@@ -17,11 +17,6 @@ DWORD g_viewerMatchesAt=0;
 unsigned g_viewerWorld=0;
 DWORD g_viewerClosedAt=0;
 int g_viewerGroup=0,g_viewerCategoryTop=0,g_viewerRow=0;
-struct ViewerPosition {
-    int group=0,categoryTop=0,row=0;
-    bool owned=false,sets=false,favorites=false;
-    std::wstring query;
-};
 std::map<std::string,ViewerPosition> g_viewerPositions;
 std::string g_viewerPositionSet;
 int g_viewerDetail=-1,g_viewerDetailScroll=0,g_viewerDetailMax=0;
@@ -106,15 +101,16 @@ bool viewerRecordMatch(int group,int entry,const std::string& query) {
     if(query.empty())return false;
     const char* record=liveGroupRecord(group,entry);
     const auto* info=liveItemInfo(record);
-    if(journalRows(record)) {
+    return utViewerSearchMatch(journalRows(record)!=0,[&]() {
         if(info && utSearchHit(utSearchNeedleUtf8(std::string(info->name).c_str()),query))return true;
-        if(searchViewerMatch(group,entry,query))return true;
-    }
+        return searchViewerMatch(group,entry,query);
+    },[&]() {
     // Set names and drop sources are public even when the item is unknown.
     const char* groupLabel=liveGroupLabel(group);
     if(strncmp(groupLabel,"Set:",4)==0 &&
        utSearchHit(utSearchNeedleUtf8(museum::categoryCaption(groupLabel)),query))return true;
     return tooltipBestSourceMatch(record,query,true);
+    });
 }
 void viewerRebuild() {
     g_viewerDetail=-1;g_viewerDetailScroll=0;searchViewerTooltipClear();
@@ -189,8 +185,8 @@ void viewerToggle() {
     }
     g_viewerGroup=(std::min)(g_viewerGroup,liveGroupCount()-1);
     viewerRebuild();
-    g_viewerRow=(std::max)(0,(std::min)(position.row,(std::max)(0,viewerTotalRows()-viewerWindowRows())));
-    g_viewerCategoryTop=(std::max)(0,(std::min)(g_viewerCategoryTop,(std::max)(0,int(g_viewerCategories.size())-kViewerCategoryRows)));
+    g_viewerRow=utViewerClampOffset(position.row,viewerTotalRows(),viewerWindowRows());
+    g_viewerCategoryTop=utViewerClampOffset(g_viewerCategoryTop,int(g_viewerCategories.size()),kViewerCategoryRows);
     logI("viewer: opened (key %d), read-only",g_cfg.viewerHotkey);
 }
 bool viewerHit(float x,float y,float rx,float ry,float w,float h) {

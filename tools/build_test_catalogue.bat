@@ -25,7 +25,7 @@ cl /utf-8 /nologo /W4 /WX /EHsc /O2 /std:c++17 /GR- /MT /DNDEBUG /D_CRT_SECURE_N
    /I"%ROOT%\src" /Fo"%OUT%\\" /Fe"%OUT%\test_catalogue.exe" ^
    "%ROOT%\tools\test_catalogue.cpp" "%ROOT%\src\game\archive\inflate.cpp" "%ROOT%\src\game\archive\arz_reader.cpp" ^
    "%ROOT%\src\game\archive\arc_reader.cpp" "%ROOT%\src\game\archive\catalogue_gen.cpp" "%ROOT%\src\game\archive\generate.cpp" ^
-   "%ROOT%\src\backend\model\catalogue.cpp" psapi.lib advapi32.lib
+   "%ROOT%\src\game\archive\loot_sources.cpp" "%ROOT%\src\backend\model\catalogue.cpp" psapi.lib advapi32.lib
 if errorlevel 1 (echo [test] BUILD FAILED & exit /b 1)
 
 set RC=0

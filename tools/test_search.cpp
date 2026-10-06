@@ -12,6 +12,9 @@
 
 #include <string>
 #include <vector>
+#include <map>
+#include <limits>
+#include "backend/viewer_rules.h"
 
 #include "game/search_adapter.h"
 #include "backend/colors.h"
@@ -88,6 +91,41 @@ static std::string foldW(const wchar_t* w) {
 static integration::UtSearchStage g_stage;   // ~70 KB: not on the stack
 
 int main() {
+    {
+        using namespace integration;
+        struct Source { double chance; const char* name; };
+        std::vector<Source> rows={{0.001,"Arachnid"},{0.001,"Ness"},{0.0002,"Lower"}};
+        auto probability=[](const Source& row){return row.chance;};
+        auto find=[&](const char* name){return utBestSourcesMatch(rows,probability,[&](size_t i){return strcmp(rows[i].name,name)==0;});};
+        check(find("Ness") && find("Arachnid"),"both equal maximum sources match");
+        check(!find("Lower") && !find("Missing"),"lower and missing source names do not match");
+        std::swap(rows[0],rows[2]);
+        check(find("Ness") && find("Arachnid") && !find("Lower"),"maximum matching ignores input order");
+        rows[1].chance=0.0001;
+        check(!find("Ness"),"a formerly tied monster stops matching after its chance falls");
+        check(utSourceCoBest(0.001+1e-16,0.001),"floating point noise preserves ties");
+        check(!utSourceCoBest(0.001000001,0.001),"similar rounded display values are not ties");
+        check(!utSourceCoBest(0,0) && !utSourceCoBest(std::numeric_limits<double>::quiet_NaN(),0.001),"invalid or zero probabilities are not co-best");
+        std::vector<Source> tied(12,Source{0.001,"Tied"});
+        tied.push_back({0.0002,"Lower"});
+        check(utSourceRetainCount(tied,probability)==12,"all maximum ties survive beyond ten displayed rows");
+        tied[11].chance=0.0005;
+        check(utSourceRetainCount(tied,probability)==11,"extra lower rows are excluded from retained ties");
+        tied.clear();check(utSourceRetainCount(tied,probability)==0 && !utBestSourcesMatch(tied,probability,[](size_t){return true;}),"empty source lists are safe");
+        int privateCalls=0;
+        auto hiddenName=[&](){++privateCalls;return true;};
+        check(!utViewerSearchMatch(false,hiddenName,[](){return false;}) && privateCalls==0,"unknown item names and properties are never searched");
+        check(utViewerSearchMatch(false,hiddenName,[](){return true;}) && privateCalls==0,"unknown items still match public set or monster names");
+        check(utViewerSearchMatch(true,hiddenName,[](){return false;}) && privateCalls==1,"stored item names and properties remain searchable");
+        std::map<std::string,ViewerPosition> positions;
+        positions["main"]={3,4,8,true,false,true,L"Несс"};
+        positions["custom"]={2,1,0,false,true,false,L"Set"};
+        const ViewerPosition restored=positions.at("main");
+        check(restored.group==3 && restored.categoryTop==4 && restored.row==8 && restored.owned && restored.favorites && restored.query==L"Несс","viewer snapshot retains navigation, filters and Unicode query");
+        check(positions.at("custom").sets && positions.at("custom").query==L"Set","collection sets have independent snapshots");
+        check(utViewerClampOffset(restored.row,30,4)==8 && utViewerClampOffset(restored.row,7,4)==3,"reopening preserves a valid row and clamps a shortened list");
+        check(utViewerClampOffset(8,0,4)==0 && utViewerClampOffset(-2,30,4)==0 && utViewerClampOffset(50,19,15)==4,"empty lists and invalid/sidebar offsets are bounded");
+    }
     printf("1. the vector read and free over a fake engine vector\n");
     {
         FakeVec v = makeVec(4);

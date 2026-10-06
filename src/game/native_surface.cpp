@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <cmath>
 #include "game/viewer_star_tex.h"
+#include "backend/viewer_rules.h"
 
 #include "game/hooks.h"
 #include "game/game_api.h"

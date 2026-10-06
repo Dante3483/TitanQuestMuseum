@@ -2,6 +2,7 @@
 #include "game/archive/arz_reader.h"
 #include <algorithm>
 #include <cmath>
+#include "backend/viewer_rules.h"
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -185,11 +186,7 @@ struct Solver {
             if(same!=list.end()){if(same->p>=p.p)continue;*same=p;}else list.push_back(p);
             std::sort(list.begin(),list.end(),[](const Pick& x,const Pick& y){if(x.p!=y.p)return x.p>y.p;return std::tie(x.name,x.diff,x.kind)<std::tie(y.name,y.diff,y.kind);});
             // Display ten rows, but retain every co-best source for name searches.
-            if(list.size()>10) {
-                size_t keep=10;
-                while(keep<list.size() && std::fabs(list[keep].p-list.front().p)<=list.front().p*1e-12)++keep;
-                list.resize(keep);
-            }
+            list.resize(integration::utSourceRetainCount(list,[](const Pick& row){return row.p;}));
         }
     }
     void monster(const Node& n){

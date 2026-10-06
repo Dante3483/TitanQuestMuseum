@@ -21,7 +21,8 @@ cl /utf-8 /nologo /W4 /WX /EHsc /std:c++17 /GR- /MT /DNDEBUG /D_CRT_SECURE_NO_WA
    /DWIN32_LEAN_AND_MEAN /DNOMINMAX /DUT_TOOLTIP_TEST_SEAM /I"%MINHOOK%\include" /I"%ROOT%\src" ^
    /Fo"%OUT%\\" /Fe"%OUT%\test_tooltip.exe" ^
    "%ROOT%\tools\test_tooltip.cpp" "%ROOT%\src\game\tooltip_adapter.cpp" "%ROOT%\src\core\configuration.cpp" ^
-   "%ROOT%\src\core\paths.cpp"
+   "%ROOT%\src\core\paths.cpp" "%ROOT%\src\game\archive\loot_sources.cpp" ^
+   "%ROOT%\src\game\archive\arz_reader.cpp" "%ROOT%\src\game\archive\inflate.cpp"
 if errorlevel 1 (echo [test] BUILD FAILED & exit /b 1)
 
 "%OUT%\test_tooltip.exe" > "%OUT%\test_tooltip.out.txt" 2>&1

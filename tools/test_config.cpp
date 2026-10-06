@@ -169,7 +169,11 @@ static int countKeyLines(const char* text, const char* name) {
     return n;
 }
 
+static bool logMigrationFrom(int from) {
+    char expected[96];sprintf_s(expected,"migrated from ini_version=%d to %d",from,UT_INI_VERSION);return logHas(expected);
+}
 int main() {
+    char currentVersion[40];sprintf_s(currentVersion,"ini_version=%d",UT_INI_VERSION);
     // A folder of this run's own: two harnesses started at once, or one left behind by a killed
     // run, must never read each other's ini.
     wchar_t dir[MAX_PATH];
@@ -410,7 +414,7 @@ int main() {
     {
         const UtConfig d;
         check(d.ownedMarks == 3, "the default: owned_marks=3");
-        check(UT_INI_VERSION == 17 && UT_GRAY_ICONS_SINCE == 13, "ini_version 17, the gray default since 13");
+        check(UT_INI_VERSION >= 18 && UT_GRAY_ICONS_SINCE == 13, "ini_version 17, the gray default since 13");
         char old[512];
         _snprintf_s(old, sizeof(old), _TRUNCATE,
                     "ini_version=11\r\n[display]\r\nowned_marks=1\r\nslot_plates=2\r\n");
@@ -419,11 +423,11 @@ int main() {
         integration::configReload(ini);
         check(integration::g_cfg.ownedMarks == 3 && integration::g_cfg.slotPlates == 2,
               "ini_version 11 reading owned_marks=1 (the old default) -> 3, the rest kept");
-        check(logHas("owned_marks=1 was the old default") && logHas("migrated from ini_version=11 to 17"),
+        check(logHas("owned_marks=1 was the old default") && logMigrationFrom(11),
               "and the log says so");
         DWORD len = 0;
         char* text = readAll(ini, &len);
-        check(text && strstr(text, "\r\nowned_marks=3") != nullptr && strstr(text, "ini_version=17") != nullptr,
+        check(text && strstr(text, "\r\nowned_marks=3") != nullptr && strstr(text, currentVersion) != nullptr,
               "the rewritten file says owned_marks=3 and ini_version=17");
         check(text && patch(text, "\r\nowned_marks=3", "\r\nowned_marks=1"),
               "the user sets owned_marks=1 (the veil) in the current file");
@@ -441,7 +445,7 @@ int main() {
         logClear();
         integration::configReload(ini);
         check(integration::g_cfg.ownedMarks == 3 && logHas("owned_marks=1 was the old default") &&
-                  logHas("migrated from ini_version=12 to 17"),
+                  logMigrationFrom(12),
               "the merge rule: a branch's ini_version 12 with owned_marks=1 is moved to 3 once (12 is before the gray default)");
         for (int v = 0; v <= 2; v += 2) {
             _snprintf_s(old, sizeof(old), _TRUNCATE, "ini_version=11\r\n[display]\r\nowned_marks=%d\r\n", v);
@@ -462,7 +466,7 @@ int main() {
     // ---- 5y. ini_version 12 (13 after the merge) changes no value; it rewrites mp_collect's comment ----
     printf("\n5y. an ini_version 11 file (the old mp_collect comment) is rewritten, every value kept\n");
     {
-        check(UT_INI_VERSION == 17, "ini_version 17 (13: the comment bump merged with 12; 14: the search keys)");
+        check(UT_INI_VERSION >= 18, "ini_version 17 (13: the comment bump merged with 12; 14: the search keys)");
         writeText(ini,
                   "ini_version=11\r\n[collection]\r\n"
                   "; read and kept (GD's key); in this version deposits and takes are ALWAYS refused "
@@ -470,7 +474,7 @@ int main() {
                   "[display]\r\nslot_plates=1\r\nhave_marks=1\r\ngrid_cover=0\r\n");
         logClear();
         integration::configReload(ini);
-        check(integration::g_cfg.iniVersion == 17 && logHas("migrated from ini_version=11 to 17"),
+        check(integration::g_cfg.iniVersion == UT_INI_VERSION && logMigrationFrom(11),
               "ini_version 11 is migrated to 17, and the log says so");
         check(integration::g_cfg.mpCollect == 0 && integration::g_cfg.slotPlates == 1 && integration::g_cfg.haveMarks == 1 &&
                   integration::g_cfg.gridCover == 0,
@@ -481,7 +485,7 @@ int main() {
         char* text = readAll(ini, &len);
         check(text && strstr(text, "ALWAYS refused") == nullptr &&
                   strstr(text, "; 1 = the collection works in a MULTIPLAYER game (hosted or joined)") != nullptr &&
-                  strstr(text, "\r\nmp_collect=0") != nullptr && strstr(text, "ini_version=17") != nullptr,
+                  strstr(text, "\r\nmp_collect=0") != nullptr && strstr(text, currentVersion) != nullptr,
               "the file now carries the new mp_collect comment, the kept value and ini_version=17");
         free(text);
         logClear();
@@ -495,7 +499,7 @@ int main() {
         logClear();
         integration::configReload(ini);
         text = readAll(ini, &len);
-        check(integration::g_cfg.iniVersion == 17 && logHas("migrated from ini_version=12 to 17") &&
+        check(integration::g_cfg.iniVersion == UT_INI_VERSION && logMigrationFrom(12) &&
                   integration::g_cfg.mpCollect == 1 && integration::g_cfg.ownedMarks == 2 && text &&
                   strstr(text, "ALWAYS refused") == nullptr,
               "the merge: a branch ini_version 12 (the old comment) gets the new comment too, values kept");
@@ -625,7 +629,7 @@ int main() {
         writeText(ini, "ini_version=13\r\n[display]\r\nowned_marks=2\r\n");
         logClear();
         integration::configReload(ini);
-        check(integration::g_cfg.iniVersion == 17 && logHas("migrated from ini_version=13 to 17") &&
+        check(integration::g_cfg.iniVersion == UT_INI_VERSION && logMigrationFrom(13) &&
                   integration::g_cfg.ownedMarks == 2 && integration::g_cfg.search == 1 && integration::g_cfg.searchButtons == 1 &&
                   integration::g_cfg.searchLore == 0 && integration::g_cfg.searchPrebuild == 0 &&
                   integration::g_cfg.searchDebugQuery[0] == 0,
@@ -657,7 +661,7 @@ int main() {
         writeText(ini, "ini_version=14\r\n[display]\r\nsearch_buttons=0\r\n");
         logClear();
         integration::configReload(ini);
-        check(integration::g_cfg.iniVersion == 17 && logHas("migrated from ini_version=14 to 17") &&
+        check(integration::g_cfg.iniVersion == UT_INI_VERSION && logMigrationFrom(14) &&
                   integration::g_cfg.searchButtons == 0 && integration::g_cfg.searchMark == 1,
               "a file from 14 is migrated: its values kept, search_mark at its default");
         text = readAll(ini, &len);
@@ -669,7 +673,7 @@ int main() {
     printf("\n5za. search_mark=1 by default, search_mark_color, a 15 file migrated once\n");
     {
         const UtConfig d;
-        check(d.searchMark == 1 && !strcmp(d.searchMarkColor, "gold") && UT_INI_VERSION == 17 &&
+        check(d.searchMark == 1 && !strcmp(d.searchMarkColor, "gold") && UT_INI_VERSION >= 18 &&
                   UT_SEARCH_FRAME_SINCE == 16,
               "the defaults: search_mark=1 (a thin frame), search_mark_color=gold; ini_version 17");
         char cur[512];
@@ -720,8 +724,8 @@ int main() {
                   "search_lore=1\r\n[advanced]\r\npad_y=8\r\nplate_label_size=16\r\nsearch_debug_query=fire\r\n");
         logClear();
         integration::configReload(ini);
-        check(integration::g_cfg.iniVersion == 17 && integration::g_cfg.searchMark == 1 &&
-                  logHas("search_mark=3 was the old default") && logHas("migrated from ini_version=15 to 17"),
+        check(integration::g_cfg.iniVersion == UT_INI_VERSION && integration::g_cfg.searchMark == 1 &&
+                  logHas("search_mark=3 was the old default") && logMigrationFrom(15),
               "a 15 file reading search_mark=3 (the old default) -> 1, and the log says so");
         check(integration::g_cfg.searchButtons == 0 && integration::g_cfg.ownedMarks == 2 && integration::g_cfg.searchLore == 1 &&
                   integration::g_cfg.padY == 8 && integration::g_cfg.plateLabelSize == 16 &&
@@ -730,7 +734,7 @@ int main() {
         DWORD len = 0;
         char* text = readAll(ini, &len);
         check(text && strstr(text, "\r\nsearch_mark=1") != nullptr &&
-                  strstr(text, "\r\nsearch_mark_color=gold") != nullptr && strstr(text, "ini_version=17") != nullptr,
+                  strstr(text, "\r\nsearch_mark_color=gold") != nullptr && strstr(text, currentVersion) != nullptr,
               "the rewritten file says search_mark=1, search_mark_color=gold and ini_version=17");
         check(text && patch(text, "\r\nsearch_mark=1", "\r\nsearch_mark=3"),
               "the user sets search_mark=3 (the frame and the wash) in the current file");
@@ -748,7 +752,7 @@ int main() {
             logClear();
             integration::configReload(ini);
             check(integration::g_cfg.searchMark == v && !logHas("search_mark=3 was the old default") &&
-                      logHas("migrated from ini_version=15 to 17"),
+                      logMigrationFrom(15),
                   v == 1 ? "a 15 file with search_mark=1 (the player's) stays 1"
                          : "a 15 file with search_mark=2 (the player's) stays 2");
         }
@@ -758,7 +762,7 @@ int main() {
     printf("\n5zb. search_transfer=1 by default, read, and a 16 file migrated keeping every value\n");
     {
         const UtConfig d;
-        check(d.searchTransfer == 1 && UT_INI_VERSION == 17,
+        check(d.searchTransfer == 1 && UT_INI_VERSION >= 18,
               "the default: search_transfer=1 (the field on the real Transfer page too); ini_version 17");
         char cur[256];
         _snprintf_s(cur, sizeof(cur), _TRUNCATE, "ini_version=%d\r\n[display]\r\nsearch_transfer=0\r\n",
@@ -773,7 +777,7 @@ int main() {
                   "search_buttons=0\r\nsearch_lore=1\r\n[advanced]\r\npad_y=8\r\nsearch_debug_query=fire\r\n");
         logClear();
         integration::configReload(ini);
-        check(integration::g_cfg.iniVersion == 17 && logHas("migrated from ini_version=16 to 17") &&
+        check(integration::g_cfg.iniVersion == UT_INI_VERSION && logMigrationFrom(16) &&
                   !logHas("was the old default") && integration::g_cfg.searchTransfer == 1,
               "a 16 file is migrated to 17 and gains search_transfer=1");
         check(integration::g_cfg.searchMark == 3 && !strcmp(integration::g_cfg.searchMarkColor, "#40e0ff") &&
@@ -782,14 +786,14 @@ int main() {
               "every value of the 16 file is kept (a 3 set in a 16 file is the player's)");
         DWORD len = 0;
         char* text = readAll(ini, &len);
-        check(text && strstr(text, "\r\nsearch_transfer=1") != nullptr && strstr(text, "ini_version=17") != nullptr &&
+        check(text && strstr(text, "\r\nsearch_transfer=1") != nullptr && strstr(text, currentVersion) != nullptr &&
                   strstr(text, "\r\nsearch_mark=3") != nullptr,
               "the rewritten file says search_transfer=1, search_mark=3 and ini_version=17");
         if (text) free(text);
         writeText(ini, "ini_version=16\r\n[display]\r\nsearch_transfer=0\r\n");
         logClear();
         integration::configReload(ini);
-        check(integration::g_cfg.searchTransfer == 0 && logHas("migrated from ini_version=16 to 17"),
+        check(integration::g_cfg.searchTransfer == 0 && logMigrationFrom(16),
               "a 0 already in a 16 file (a hand edit) is kept");
     }
 
@@ -854,8 +858,8 @@ int main() {
         integration::configReload(ini);
         char want36[128];
         _snprintf_s(want36, sizeof(want36), _TRUNCATE,
-                    "migrated from ini_version=36 to %d - 18 setting(s) kept, 20 new one(s) defaulted",
-                    UT_INI_VERSION);
+                    "migrated from ini_version=36 to %d - 18 setting(s) kept, %d new one(s) defaulted",
+                    UT_INI_VERSION, integration::kUtCfgKeyCount-18);
         check(logHas(want36),
               "18 of its keys are settings here (GD's pad/label keys; owned_only; "
               "search_buttons; export_csv; the five tooltip keys), 20 are new (slot_plates; "
@@ -940,7 +944,9 @@ int main() {
         DWORD before = 0;
         char* text = readAll(ini, &before);
         free(text);
-        check(integration::configPersistInt("mp_collect", 0), "mp_collect=0 is written back");
+        const bool persisted=integration::configPersistInt("mp_collect",0);
+        if(!persisted)printf("persist error: %lu\n",GetLastError());
+        check(persisted, "mp_collect=0 is written back");
         DWORD after = 0;
         text = readAll(ini, &after);
         check(after == before, "the file is exactly as long as it was");
@@ -1025,6 +1031,17 @@ int main() {
     }
 
     // The run's own folder goes with it; nothing but this harness's files is in it.
+    {
+        writeText(ini,"ini_version=17\r\n[view]\r\nview_hotkey=119\r\n[display]\r\nsearch_transfer=0\r\n");
+        integration::configReload(ini);
+        check(integration::g_cfg.iniVersion==UT_INI_VERSION && integration::g_cfg.viewerHotkey==67 &&
+              integration::g_cfg.viewHotkey==119 && integration::g_cfg.searchTransfer==0,
+              "version 17 migration adds viewer C and preserves existing caravan/search settings");
+        writeText(ini,"ini_version=17\r\n[view]\r\nviewer_hotkey=120\r\nview_hotkey=0\r\n");
+        integration::configReload(ini);
+        check(integration::g_cfg.viewerHotkey==120 && integration::g_cfg.viewHotkey==0,
+              "migration preserves a custom viewer hotkey and disabled caravan hotkey");
+    }
     DeleteFileW(ini);
     DeleteFileW(trigger);
     DeleteFileW(triggerTxt);

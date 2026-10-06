@@ -66,6 +66,7 @@
 #include "core/logging.h"
 #include "backend/ownership_rules.h"
 #include "backend/search_rules.h"
+#include "backend/viewer_rules.h"
 #include "game/item_adapter.h"
 #include "game/native_surface.h"
 #include "game/view_adapter.h"
@@ -843,7 +844,7 @@ void parseSources(const std::string& text){
         if(parsed.size()>=4096&&!parsed.count(sourceKey(record.c_str())))break;
         auto& entry=parsed[sourceKey(record.c_str())];
         if(entry.rows.size()<4096 && (entry.rows.size()<10 ||
-           std::fabs(row.probability-entry.rows.front().probability)<=entry.rows.front().probability*1e-12)) {
+           utSourceCoBest(row.probability,entry.rows.front().probability))) {
             row.name=name;entry.rows.push_back(row);
         }
     }
@@ -1027,18 +1028,15 @@ bool tooltipBestSourceMatch(const char* record,const std::string& query,bool inc
     const auto found=g_sources.find(sourceKey(record));
     if(found==g_sources.end() || found->second.rows.empty())return false;
     const auto& rows=found->second.rows;
-    double best=0;for(const auto& row:rows)best=(std::max)(best,row.probability);
-    for(size_t i=0;i<rows.size();++i) {
-        // Ignore only floating-point calculation noise, not rounded display equality.
-        if(std::fabs(rows[i].probability-best)>best*1e-12)continue;
+    return utBestSourcesMatch(rows,[](const SourceRow& row){return row.probability;},[&](size_t i) {
         if(utSearchHit(utSearchNeedleUtf8(rows[i].name.c_str()),query))return true;
         if(includeDetails) {
             TooltipSourceText parts;
             if(tooltipSourceText(record,i,parts) &&
                (utSearchHit(utSearchNeedleUtf8(parts.details),query) || utSearchHit(utSearchNeedleUtf8(parts.chance),query)))return true;
         }
-    }
-    return false;
+        return false;
+    });
 }
 bool tooltipSourceText(const char* record,size_t index,TooltipSourceText& output) {
     output={};auto found=g_sources.find(sourceKey(record));

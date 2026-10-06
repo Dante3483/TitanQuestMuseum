@@ -934,6 +934,43 @@ int main(int argc, char** argv) {
     }
 
     integration::journalOpenSet(nullptr);
+    {
+        using namespace integration;
+        printf("\nMultiple rolled instances: read-only copy snapshots and newest withdrawal\n");
+        clean("tq-uniq-items-copy-instances");
+        check(journalOpenSet("tq-uniq-items-copy-instances"),"isolated copy-instance test set opened");
+        UtReplicaCapture first=cap(kRing,123,"records/item/lootmagicalaffixes/prefix/first.dbr","records/item/relics/first.dbr");
+        UtReplicaCapture second=cap(kRing,456,"records/item/lootmagicalaffixes/prefix/second.dbr","records/item/relics/second.dbr");
+        for(int k=kUtIdSuffix;k<kUtIdStrCount;++k) {
+            sprintf_s(first.str[k],"records/item/instance-a-%d.dbr",k);
+            sprintf_s(second.str[k],"records/item/instance-b-%d.dbr",k);
+        }
+        first.var1=17;first.var2=29;first.b8=7;
+        second.var1=37;second.var2=49;second.b8=255;
+        unsigned long long a=0,b=0;bool rb=false;
+        check(journalDepositCommit(first,&a,&rb) && journalDepositCommit(second,&b,&rb) && a!=b,"same base record stores two distinct fully rolled rows");
+        const std::string disk=readAll(journalPath());const long writes=journalWrites();
+        const size_t pendingIn=journalPendingIn(),pendingOut=journalPendingOut();
+        bool exact=true;
+        for(int i=0;i<50;++i) {
+            UtReplicaCapture snapshot={},copy={};unsigned long long seq=0;UtReplica replica;
+            if(!journalNewest(kRingKey,&snapshot,&seq) || seq!=b || !sameCap(snapshot,second) ||
+               !utReplicaFromIdentity(&replica,snapshot) || !utReplicaReadIdentity(replica.bytes,&copy) || !sameCap(copy,second))exact=false;
+            // Mutating the mod-owned reconstructed copy cannot mutate the stored original.
+            copy.seed=0;copy.str[kUtIdPrefix][0]=0;
+        }
+        check(exact,"50 newest snapshots reproduce every saved field without mixing instances");
+        check(journalRows(kRingKey)==2 && journalCount()==2 && journalWrites()==writes &&
+              journalPendingIn()==pendingIn && journalPendingOut()==pendingOut && readAll(journalPath())==disk,
+              "read-only reconstruction leaves counts, pending states, write count and journal bytes unchanged");
+        check(!journalTakeCommit(kRingKey,a,&rb) && readAll(journalPath())==disk,"stale first-row withdrawal is refused without a write");
+        check(journalTakeCommit(kRingKey,b,&rb),"ordinary withdrawal removes newest instance");
+        UtReplicaCapture remaining={};unsigned long long seq=0;
+        check(journalNewest(kRingKey,&remaining,&seq) && seq==a && sameCap(remaining,first),"older instance keeps its own seed, affixes, upgrades and fields");
+        check(journalOpenSet("tq-uniq-items-copy-other") && journalOpenSet("tq-uniq-items-copy-instances") &&
+              journalNewest(kRingKey,&remaining,&seq) && seq!=0 && sameCap(remaining,first),"remaining instance survives closing and reloading the journal (sequence is session-local)");
+        journalOpenSet(nullptr);
+    }
     integration::logShutdown();
     printf("\n%s - %d passed, %d failed\n", g_fail ? "JOURNAL TESTS FAILED" : "ALL PASS", g_pass,
            g_fail);

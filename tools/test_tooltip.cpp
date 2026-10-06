@@ -99,6 +99,9 @@ int g_storeAsks = 0;
 // TQ's record read calls Object::GetObjectName through g_tq; section 9 points it at a stub that
 // returns a FakeItem's name. The journal's save set: open, unless a row closes it.
 TqRuntime g_tq;
+TqGameEngine* gameEngine() { return nullptr; }
+TqEngine* engine() { return nullptr; }
+bool panelCopyItem(const void*,unsigned*,unsigned long long*) { return false; }
 bool g_setKnown = true;
 bool journalSetKnown() { return g_setKnown; }
 // the cost meter (hooks.cpp in the mod) - the detours stamp their own time
