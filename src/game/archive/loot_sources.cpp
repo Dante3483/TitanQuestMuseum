@@ -184,7 +184,12 @@ struct Solver {
             auto& list=best[v.first];auto same=std::find_if(list.begin(),list.end(),[&](const Pick& x){return x.name==p.name&&x.kind==p.kind&&x.diff==p.diff;});
             if(same!=list.end()){if(same->p>=p.p)continue;*same=p;}else list.push_back(p);
             std::sort(list.begin(),list.end(),[](const Pick& x,const Pick& y){if(x.p!=y.p)return x.p>y.p;return std::tie(x.name,x.diff,x.kind)<std::tie(y.name,y.diff,y.kind);});
-            if(list.size()>10)list.resize(10);
+            // Display ten rows, but retain every co-best source for name searches.
+            if(list.size()>10) {
+                size_t keep=10;
+                while(keep<list.size() && std::fabs(list[keep].p-list.front().p)<=list.front().p*1e-12)++keep;
+                list.resize(keep);
+            }
         }
     }
     void monster(const Node& n){

@@ -114,11 +114,7 @@ bool viewerRecordMatch(int group,int entry,const std::string& query) {
     const char* groupLabel=liveGroupLabel(group);
     if(strncmp(groupLabel,"Set:",4)==0 &&
        utSearchHit(utSearchNeedleUtf8(museum::categoryCaption(groupLabel)),query))return true;
-    const char* source=tooltipBestSourceName(record);
-    if(source && utSearchHit(utSearchNeedleUtf8(source),query))return true;
-    TooltipSourceText parts;
-    return tooltipSourceText(record,0,parts) &&
-        (utSearchHit(utSearchNeedleUtf8(parts.details),query) || utSearchHit(utSearchNeedleUtf8(parts.chance),query));
+    return tooltipBestSourceMatch(record,query,true);
 }
 void viewerRebuild() {
     g_viewerDetail=-1;g_viewerDetailScroll=0;searchViewerTooltipClear();

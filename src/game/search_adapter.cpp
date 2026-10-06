@@ -858,8 +858,7 @@ double msSince(const LARGE_INTEGER& t0) {
 }
 
 bool sourceMatchOf(int g,int k){
-    const char* name=tooltipBestSourceName(liveGroupRecord(g,k));
-    return g_active && g_needle && name && *name && utSearchHit(utSearchNeedleUtf8(name),*g_needle);
+    return g_active && g_needle && tooltipBestSourceMatch(liveGroupRecord(g,k),*g_needle);
 }
 bool matchOf(int idx) {
     return g_ix->state[(size_t)idx] == kIndexed && g_needle &&

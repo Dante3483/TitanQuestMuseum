@@ -27,6 +27,7 @@
 #include <windows.h>
 
 #include <stddef.h>
+#include <string>
 
 namespace integration {
 
@@ -43,6 +44,8 @@ const char* tooltipSourceStatus();
 int tooltipSourceDifficulty();
 unsigned tooltipSourceRevision();
 const char* tooltipBestSourceName(const char* record);
+// Matches any source tied for the greatest unrounded probability.
+bool tooltipBestSourceMatch(const char* record,const std::string& foldedQuery,bool includeDetails=false);
 
 // Worker thread, from hooksInstall(). Installs the tooltip detours ALL-OR-NOTHING: every hook is
 // created first, and only if every create succeeded are they enabled; otherwise the created ones
