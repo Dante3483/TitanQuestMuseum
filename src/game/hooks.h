@@ -32,6 +32,7 @@ bool hooksViewOk();
 // The search field's key gate (Display::HandleKeyEvent) is installed and ButtonEvent::GetText is
 // bound: without both the field is never drawn and never takes the focus.
 bool hookKeyGateLive();
+bool hookMouseGateLive();
 long hookCaravanOpens();
 
 // GameEngine::AddItemToTransfer(id, false)'s ORIGINAL (never the deposit detour): the

@@ -1011,6 +1011,7 @@ const char* tooltipSourceStatus(){
     {std::lock_guard<std::mutex> lock(g_sourceWorker->mutex);if(g_sourceWorker->failed)return museum::i18n::text("museum.sources.unavailable");}
     return museum::i18n::text(g_sourceReady?"museum.sources.none":"museum.sources.loading");
 }
+int tooltipSourceDifficulty(){return g_sourceContextValid?g_sourceContext.difficulty:-1;}
 unsigned tooltipSourceRevision(){return g_sourceRevision;}
 const char* tooltipBestSourceName(const char* record){
     auto found=g_sources.find(sourceKey(record));

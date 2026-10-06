@@ -396,6 +396,8 @@ void searchTick(bool worldUp);
 // The page build, just before it lays out `group`: a standing query (or search_prebuild=1 at the
 // first view-ON) starts the index, and a group that is not indexed yet is indexed now, whole.
 void searchBeforePage(int group);
+// Independent viewer query over the same property index; does not change caravan search.
+bool searchViewerMatch(int group,int entry,const std::string& foldedQuery);
 // Any thread (the pad draws them): the marked groups (bit i = group i), 0 while no query stands
 // or search_buttons=0; whether a query stands; and the label's words ("indexing k/1588",
 // "found N") with their short forms for a narrow box ("k/1588", "=N"), all empty while no query

@@ -29,6 +29,7 @@
 
 namespace integration {
 namespace {
+gdut::Catalogue catalogue;
 bool (*ownershipKnown)() = nullptr;
 int (*recordOwnership)(const char*) = nullptr;
 
@@ -177,7 +178,6 @@ bool collectionInitialize(const char* path, bool ownedOnly) {
             gs->push_back(g);
         }
         // Immutable alternate views of existing items: never add these to completion totals.
-        gdut::Catalogue catalogue;
         const std::string groupPath(path);
         const auto slash=groupPath.find_last_of("/\\");
         const std::string cataloguePath=groupPath.substr(0,slash+1)+"catalogue.bin";
@@ -222,6 +222,11 @@ bool collectionInitialize(const char* path, bool ownedOnly) {
 }
 
 bool liveActive() { return g_groups != nullptr && !g_groups->empty(); }
+
+const gdut::ItemView* liveItemInfo(const char* record) {
+    const int index=record ? catalogue.indexOfRecord(record) : -1;
+    return index<0 ? nullptr : &catalogue.item(size_t(index));
+}
 
 int liveGroupCount() { return g_groups ? (int)g_groups->size() : 0; }
 

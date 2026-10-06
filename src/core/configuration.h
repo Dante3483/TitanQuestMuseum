@@ -78,7 +78,7 @@
 // 17 = [display] search_transfer: the search field is shown on the real Transfer page too (the
 //     view OFF) and marks the real sack's items the query finds. A file from 16 keeps every value
 //     and gains the key at its default.
-#define UT_INI_VERSION 17
+#define UT_INI_VERSION 18
 // The ini_version from which search_mark's default is 1 (the migration moves an old default 3).
 #define UT_SEARCH_FRAME_SINCE 16
 // The ini_version from which owned_marks' default is 3 (the migration moves an old default 1).
@@ -239,6 +239,7 @@ struct UtConfig {
     int plateLabelSize = 13;      // label height in record px (scaled: utPlateLabelPx)
     // TQ: the view toggle key, a Windows virtual-key code (117 = F6); 0 = no hotkey.
     int viewHotkey = 117;
+    int viewerHotkey = 67;       // Standalone read-only viewer: C; 0 disables the key.
     // TQ: the caravan window's record values (caravanwindow.dbr 565 x 637 at 10,0, X Left,
     // Y Centred; TransferWindow.dbr at y 126). A UI mod that moves the window is followed here.
     int caravanX = 10;

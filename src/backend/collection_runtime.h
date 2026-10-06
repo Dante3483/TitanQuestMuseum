@@ -12,6 +12,7 @@
 #pragma once
 
 #include <windows.h>
+#include "backend/model/catalogue.h"
 
 #include "backend/prototype_shift.h"
 
@@ -22,6 +23,7 @@ namespace integration {
 bool collectionInitialize(const char* groupFile, bool ownedOnly);
 void collectionOwnershipProvider(bool (*known)(), int (*state)(const char*));
 bool liveActive();
+const gdut::ItemView* liveItemInfo(const char* record);
 
 int liveGroupCount();
 const char* liveGroupLabel(int group);   // never null

@@ -1090,9 +1090,10 @@ bool __fastcall panelNativeMouse(void*, void*, const void*) {
 void __fastcall panelNativeRender(void*, void*, const void*) {}
 void __fastcall panelNativeUpdate(void*, void*) {}
 bool __fastcall panelNativePass(void*, void*, const void*) { return false; }
+bool __fastcall panelNativeAnalog(void*, void*, const void*) { return panelViewerActive(); }
 bool __fastcall panelNativeAlways(void*, void*) { return true; }
 void* g_panelNativeVtable[] = {(void*)&panelNativeUpdate, (void*)&panelNativeRender,
-    (void*)&panelNativePass, (void*)&panelNativeMouse, (void*)&panelNativePass,
+    (void*)&panelNativePass, (void*)&panelNativeMouse, (void*)&panelNativeAnalog,
     (void*)&panelNativeAlways};
 struct PanelNativeWidget { void** vtable; } g_panelNativeWidget = {g_panelNativeVtable};
 typedef void(__thiscall* PfnProcessInput)(void*);
@@ -1123,7 +1124,9 @@ void __fastcall hk_ProcessInput(void* self, void*) {
     o_ProcessInput(self);
 }
 volatile LONG g_keyGateLive = 0;
+bool g_mouseGateLive=false;
 void __fastcall hk_HandleKeyEvent(void* self, void* /*edx*/, const void* ev) {
+    if(panelViewerKeyGate(ev))return;
     if (searchKeyGate(ev)) return;   // a press the field took
     o_HandleKeyEvent(self, ev);
 }
@@ -1300,10 +1303,9 @@ bool hooksInstall() {
     logI("rect route: %s", bg && o_PageDraw ? "the item widget background (TQ.exe PRE/POST-detour) "
                                               "inside the page draw - items centred, tint and border slot-wide"
                            : "OFF - items keep their footprint (the ring tints the slot)");
-    // the search field's key gate: search=0 installs nothing
-    int gateWanted = 0;
-    if (g_cfg.search) {
-        gateWanted = 1;
+    // Shared key gate for the search field and the standalone read-only viewer.
+    const int gateWanted = 1;
+    {
         const bool gate = createOne("Display::HandleKeyEvent (the search field)",
                                     (void*)g_tq.DisplayHandleKeyEvent, (void*)&hk_HandleKeyEvent,
                                     (void**)&o_HandleKeyEvent);
@@ -1314,8 +1316,6 @@ bool hooksInstall() {
                                    "takes the keys only while it has the focus"
                             : "the key gate is NOT available - the field is drawn disabled and reads 'search off' (the "
                               "search_debug_query key still highlights)");
-    } else {
-        logD("search: search=0 - no key gate");
     }
     const auto addWidget = (unsigned char*)GetProcAddress(g_tq.engineDll,
         "?AddWidget@Engine@GAME@@QAEXPAVDisplayWidget@2@@Z");
@@ -1343,6 +1343,7 @@ bool hooksInstall() {
             "?ProcessUserInput@Engine@GAME@@QAEXXZ") : nullptr,
         (void*)&hk_ProcessInput, (void**)&o_ProcessInput);
     ok += mouseGate ? 1 : 0;
+    g_mouseGateLive=mouseGate;
     logI("panel: native mouse gate %s", mouseGate ? "installed" : "UNAVAILABLE");
     const int wantedAll = wanted + tipWanted + 2 + gateWanted;
     if (ok == wantedAll) {
@@ -1413,6 +1414,7 @@ int hookCaravanMode() { return (int)InterlockedCompareExchange(&g_mode, 0, 0); }
 HWND hookGameWindow() { return g_hwnd; }
 bool hooksViewOk() { return InterlockedCompareExchange(&g_viewHooksOk, 0, 0) != 0; }
 bool hookKeyGateLive() { return InterlockedCompareExchange(&g_keyGateLive, 0, 0) != 0; }
+bool hookMouseGateLive() { return g_mouseGateLive; }
 long hookCaravanOpens() {
     return InterlockedCompareExchange(&g_caravanOpens, 0, 0);
 }

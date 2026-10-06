@@ -8,6 +8,8 @@
 namespace integration {
 
 void panelDraw();
+bool panelViewerActive();
+bool panelViewerKeyGate(const void* event);
 
 bool panelInput(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
 bool panelSearchFieldShown();

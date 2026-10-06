@@ -40,6 +40,7 @@ bool tooltipInit(HMODULE selfModule);
 // Game thread only: poll live context and publish background calculations.
 void tooltipSourcesTick();
 const char* tooltipSourceStatus();
+int tooltipSourceDifficulty();
 unsigned tooltipSourceRevision();
 const char* tooltipBestSourceName(const char* record);
 

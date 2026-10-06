@@ -17,6 +17,11 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <cwctype>
+#include <set>
+#include <algorithm>
+#include <cmath>
+#include "game/viewer_star_tex.h"
 
 #include "game/hooks.h"
 #include "game/game_api.h"
@@ -921,7 +926,10 @@ void keyWhat(char* out, size_t n, WPARAM wp, LPARAM lp) {
 
 }  // namespace
 
+#include "game/collection_viewer.inl"
+
 void panelDraw() {
+    if(g_viewer){viewerDraw();return;}
     // the pad is the page draw POST's when it drew it THIS frame; else here.
     // a per-frame flag like the veils' g_veilsByPage, not a 250 ms rule - a
     // frame whose POST did not draw it (the call pattern broke) gets the pad here, never none.
@@ -979,6 +987,7 @@ void panelDraw() {
 }
 
 bool panelInput(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if(viewerInput(hwnd,msg,wp,lp))return true;
     if (!plateTransferVisible() || !viewAvailable()) {
         g_down = -1;
         g_panelMouseHeld = 0;
@@ -1926,6 +1935,7 @@ void panelRectRouteUnwound() {
 
 // (see ut_panel.h). Retried each Present until the engine's file system is up.
 void panelGrayPrepare(bool noWorldYet) {
+    viewerStarPrepare(noWorldYet);
     if (g_graySource || g_grayOff || g_cfg.ownedMarks != 3 || !noWorldYet) return;
     if (!generateDone()) return;   // a first launch writes gray\ now
     if (g_tq.EngineGetFileSystem && g_tq.ppEngine) {
@@ -1942,6 +1952,8 @@ void panelGrayPrepare(bool noWorldYet) {
 }
 
 void panelForgetFonts() {
+    g_viewerStarTextures[0]=g_viewerStarTextures[1]=nullptr;g_viewerStarTried=false;
+    viewerClose();g_viewerTextures.clear();
     museum::game::forgetTextMeasurements();
     g_font = nullptr;
     g_fontTried = false;
@@ -1954,6 +1966,7 @@ void panelForgetFonts() {
 // never drops the held item on the page either: the pad sits in the page's rect below the grid, and
 // the engine reads the same button through DirectInput. The ground never meets the grid (viewgate).
 bool panelPadClaimsPress() {
+    if(viewerInputBlocked())return true;
     if (!plateTransferVisible()) return false;
     if (g_panelMouseHeld) return true;
     const DWORD now = GetTickCount();

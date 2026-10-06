@@ -49,6 +49,8 @@ const UtCfgKey kUtCfgKeys[] = {
             "is refused"),
 
     // ---- [view] ------------------------------------------------------------------------
+    UT_INT("view", "viewer_hotkey", viewerHotkey, 67, 0, 254,
+           "standalone read-only collection viewer (Windows virtual-key code: 67 = C; 0 = disabled)"),
     UT_INT("view", "view_hotkey", viewHotkey, 117, 0, 254,
            "the key that switches the Transfer page to the collection and back (a Windows "
            "virtual-key code: 117 = F6; 0 = no key, the button only)"),

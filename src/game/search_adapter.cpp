@@ -1147,6 +1147,14 @@ void searchBeforePage(int group) {
     }
 }
 
+bool searchViewerMatch(int group,int entry,const std::string& query) {
+    if(query.empty() || off() || !g_cfg.search || !ensureIndex())return false;
+    if(!g_started && !startIndex("standalone viewer search",false))return false;
+    if(group<0 || group>=int(g_ix->base.size()) || entry<0 || entry>=liveGroupEntries(group))return false;
+    const size_t index=size_t(g_ix->base[size_t(group)]+entry);
+    return g_ix->state[index]==kIndexed && utSearchHit(g_ix->text[index],query);
+}
+
 unsigned searchMarks() {
     if (!InterlockedCompareExchange(&g_labelOn, 0, 0) || !g_cfg.searchButtons) return 0;
     return liveSearchMarks();
