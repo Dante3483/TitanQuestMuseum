@@ -17,6 +17,13 @@ DWORD g_viewerMatchesAt=0;
 unsigned g_viewerWorld=0;
 DWORD g_viewerClosedAt=0;
 int g_viewerGroup=0,g_viewerCategoryTop=0,g_viewerRow=0;
+struct ViewerPosition {
+    int group=0,categoryTop=0,row=0;
+    bool owned=false,sets=false,favorites=false;
+    std::wstring query;
+};
+std::map<std::string,ViewerPosition> g_viewerPositions;
+std::string g_viewerPositionSet;
 int g_viewerDetail=-1,g_viewerDetailScroll=0,g_viewerDetailMax=0;
 UtWheelAcc g_viewerWheel;
 unsigned g_viewerCollected=0,g_viewerTotal=0;
@@ -99,8 +106,14 @@ bool viewerRecordMatch(int group,int entry,const std::string& query) {
     if(query.empty())return false;
     const char* record=liveGroupRecord(group,entry);
     const auto* info=liveItemInfo(record);
-    if(info && utSearchHit(utSearchNeedleUtf8(std::string(info->name).c_str()),query))return true;
-    if(searchViewerMatch(group,entry,query))return true;
+    if(journalRows(record)) {
+        if(info && utSearchHit(utSearchNeedleUtf8(std::string(info->name).c_str()),query))return true;
+        if(searchViewerMatch(group,entry,query))return true;
+    }
+    // Set names and drop sources are public even when the item is unknown.
+    const char* groupLabel=liveGroupLabel(group);
+    if(strncmp(groupLabel,"Set:",4)==0 &&
+       utSearchHit(utSearchNeedleUtf8(museum::categoryCaption(groupLabel)),query))return true;
     const char* source=tooltipBestSourceName(record);
     if(source && utSearchHit(utSearchNeedleUtf8(source),query))return true;
     TooltipSourceText parts;
@@ -142,6 +155,8 @@ void viewerRebuild() {
 }
 void viewerClose() {
     if(!g_viewer)return;
+    g_viewerPositions[g_viewerPositionSet]={g_viewerGroup,g_viewerCategoryTop,g_viewerRow,
+        g_viewerOwned,g_viewerSets,g_viewerFavorites,g_viewerQuery};
     g_viewer=false;g_viewerSearch=false;g_viewerHelp=false;g_viewerClosedAt=GetTickCount();
     searchViewerTooltipClear();
     logI("viewer: closed");
@@ -160,6 +175,12 @@ void viewerToggle() {
     if(!hookKeyGateLive() || !hookMouseGateLive() || !viewerPlayer() || !journalSetKnown() ||
        !liveActive() || hookCaravanOpen() || viewOn())return;
     searchFieldBlur("opening the read-only viewer");
+    g_viewerPositionSet=journalSetLeaf();
+    const auto saved=g_viewerPositions.find(g_viewerPositionSet);
+    const ViewerPosition position=saved==g_viewerPositions.end()?ViewerPosition{}:saved->second;
+    g_viewerGroup=position.group;g_viewerCategoryTop=position.categoryTop;
+    g_viewerOwned=position.owned;g_viewerSets=position.sets;g_viewerFavorites=position.favorites;
+    g_viewerQuery=position.query;
     g_viewerWorld=viewWorldGeneration();g_viewer=true;
     viewerFavoritesLoad();
     g_viewerCategories.clear();
@@ -171,7 +192,10 @@ void viewerToggle() {
         if(journalRows(liveGroupRecord(group,k)))++g_viewerCollected;
     }
     g_viewerGroup=(std::min)(g_viewerGroup,liveGroupCount()-1);
-    viewerRebuild();logI("viewer: opened (key %d), read-only",g_cfg.viewerHotkey);
+    viewerRebuild();
+    g_viewerRow=(std::max)(0,(std::min)(position.row,(std::max)(0,viewerTotalRows()-viewerWindowRows())));
+    g_viewerCategoryTop=(std::max)(0,(std::min)(g_viewerCategoryTop,(std::max)(0,int(g_viewerCategories.size())-kViewerCategoryRows)));
+    logI("viewer: opened (key %d), read-only",g_cfg.viewerHotkey);
 }
 bool viewerHit(float x,float y,float rx,float ry,float w,float h) {
     return x>=rx && x<rx+w && y>=ry && y<ry+h;

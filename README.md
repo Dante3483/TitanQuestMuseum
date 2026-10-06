@@ -29,3 +29,5 @@ still be verified in game. The game continues running behind the viewer.
 The standalone viewer key is [view] viewer_hotkey=67 (Windows VK_C). Set it to 0 to disable the shortcut. INI version 18 adds this key through the existing settings migration; other settings are retained.
 
 Viewer search keeps items in place and highlights matches in blue, including categories and set cards. It shares the Museum property index and also searches the current best drop source name/details/displayed chance. The property index fills in the background; source calculations are unchanged.
+
+The viewer remembers category/set/favorites mode, Owned filter, query, category-list offset and item row between openings in the current game process, separately per journal collection set. Reopening clamps offsets to the current list. Item name/property matches require a stored journal instance; set names and contextual sources remain searchable for unknown items. The Shift comparison experiment was removed.
