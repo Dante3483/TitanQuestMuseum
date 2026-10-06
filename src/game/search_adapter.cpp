@@ -312,6 +312,12 @@ struct Capture {
     const char* where;     // a fault's place
 };
 
+std::string g_viewerTooltipRecord;
+unsigned long long g_viewerTooltipSeq=0;
+DWORD g_viewerTooltipRequested=0;
+bool g_viewerTooltipPending=false,g_viewerTooltipReady=false,g_viewerTooltipFault=false;
+std::vector<ViewerTooltipLine> g_viewerTooltipLines;
+
 UtSearchStage g_stage;      // ~70 KB each: game thread only, never on the stack
 UtSearchStage g_stageReq;
 
@@ -549,6 +555,41 @@ int captureOne(const char* record, const void* player, std::string* out, UtSearc
         return kCapFault;
     }
     return rc;
+}
+
+bool haveBindings();
+void viewerTooltipTick(bool worldUp) {
+    if(!worldUp || !panelViewerActive() || !g_viewerTooltipPending || g_viewerTooltipFault ||
+       GetTickCount()-g_viewerTooltipRequested<100)return;
+    g_viewerTooltipPending=false;
+    if(!haveBindings())return;
+    bool playerFault=false;const void* player=mainPlayer(&playerFault);
+    if(playerFault || !player)return;
+    UtReplicaCapture identity={};unsigned long long seq=0;
+    if(!journalNewest(g_viewerTooltipRecord.c_str(),&identity,&seq) || seq!=g_viewerTooltipSeq)return;
+    UtReplica rep;
+    if(!utReplicaFromIdentity(&rep,identity))return;
+    unsigned id=0;const char* fault=nullptr;
+    TqItem* item=protoCreateLoose(rep,&id,&fault);
+    int result=kCapUnindexable;
+    std::vector<ViewerTooltipLine> lines;
+    if(item && id && !fault) {
+        UtReplicaCapture restored={};char name[256]={};unsigned stack=0;
+        if(protoCapture(item,&restored,name,sizeof(name),&stack) && utReplicaSame(identity,restored) && identity.b8==restored.b8) {
+            Capture cap={"",""};UtSearchCounts counts={};std::string folded;
+            result=captureItem(item,player,g_viewerTooltipRecord.c_str(),&folded,&counts,&cap);
+            if(result==kCapOk)for(unsigned i=0;i<g_stage.count;++i) {
+                if(g_stage.cls[i]==kUtSearchClsDirections || !g_stage.len[i])continue;
+                const auto* text=g_stage.text+g_stage.start[i];
+                lines.push_back({std::wstring(reinterpret_cast<const wchar_t*>(text),g_stage.len[i]),g_stage.cls[i]});
+            }
+        }
+    }
+    const bool destroyed=!item || protoDestroyLoose(item);
+    if(fault || result==kCapFault || !destroyed) {
+        g_viewerTooltipFault=true;logW("viewer: instance tooltip capture failed; further captures disabled");return;
+    }
+    if(result==kCapOk){g_viewerTooltipLines.swap(lines);g_viewerTooltipReady=true;}
 }
 
 // ---- the real Transfer page ------------------------------------------------------------------
@@ -1035,6 +1076,7 @@ bool syncGroup(int group, const char* how, bool inBuild) {
 }  // namespace
 
 void searchTick(bool worldUp) {
+    viewerTooltipTick(worldUp);
     if (InterlockedExchange(&g_gateFault, 0)) goOff("the key gate's event read");
     fieldTick(worldUp);   // the blur paths, before anything returns
     if (!liveActive() || off()) return;
@@ -1153,6 +1195,23 @@ bool searchViewerMatch(int group,int entry,const std::string& query) {
     if(group<0 || group>=int(g_ix->base.size()) || entry<0 || entry>=liveGroupEntries(group))return false;
     const size_t index=size_t(g_ix->base[size_t(group)]+entry);
     return g_ix->state[index]==kIndexed && utSearchHit(g_ix->text[index],query);
+}
+
+void searchViewerTooltipClear() {
+    g_viewerTooltipRecord.clear();g_viewerTooltipSeq=0;
+    g_viewerTooltipPending=false;g_viewerTooltipReady=false;g_viewerTooltipLines.clear();
+}
+bool searchViewerTooltipPending(){return g_viewerTooltipPending && !g_viewerTooltipFault;}
+const std::vector<ViewerTooltipLine>* searchViewerTooltip(const char* record) {
+    if(!record || !*record){searchViewerTooltipClear();return nullptr;}
+    UtReplicaCapture identity={};unsigned long long seq=0;
+    if(!journalNewest(record,&identity,&seq))return nullptr;
+    if(g_viewerTooltipRecord!=record || g_viewerTooltipSeq!=seq) {
+        g_viewerTooltipRecord=record;g_viewerTooltipSeq=seq;
+        g_viewerTooltipLines.clear();g_viewerTooltipReady=false;g_viewerTooltipPending=true;
+        g_viewerTooltipRequested=GetTickCount();
+    }
+    return g_viewerTooltipReady?&g_viewerTooltipLines:nullptr;
 }
 
 unsigned searchMarks() {

@@ -17,8 +17,10 @@ the caravan is closed. Esc, C or X closes it. Use the left category list (wheel
 to scroll), the wheel over the grid to scroll rows, and the Museum search
 or Owned filter. Hover an item to see its details. Unknown
 items show silhouettes and the existing contextual drop sources; stored items
-show their catalogue name, required level and journal copy count. This first
-viewer does not render the full engine stat tooltip. It creates no game items,
+show the game tooltip of the newest stored journal instance, with its rolled
+properties and full affixed name. Wheel over the right panel scrolls long text.
+A temporary item is reconstructed only during game Update, checked against the
+saved identity, captured through the existing tooltip path and destroyed. The viewer
 writes no journal rows, and cannot deposit, withdraw or duplicate items.
 Its navigation and search are independent of the caravan. Mouse and key input
 are claimed through the existing native input hooks while it is open; this must

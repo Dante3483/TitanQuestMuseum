@@ -26,6 +26,7 @@
 #include <string.h>
 
 #include <string>
+#include <vector>
 
 #include "backend/search_rules.h"
 
@@ -398,6 +399,11 @@ void searchTick(bool worldUp);
 void searchBeforePage(int group);
 // Independent viewer query over the same property index; does not change caravan search.
 bool searchViewerMatch(int group,int entry,const std::string& foldedQuery);
+struct ViewerTooltipLine { std::wstring text; unsigned cls; };
+// Request on draw, capture on game Update; newest journal identity, never committed.
+const std::vector<ViewerTooltipLine>* searchViewerTooltip(const char* record);
+void searchViewerTooltipClear();
+bool searchViewerTooltipPending();
 // Any thread (the pad draws them): the marked groups (bit i = group i), 0 while no query stands
 // or search_buttons=0; whether a query stands; and the label's words ("indexing k/1588",
 // "found N") with their short forms for a narrow box ("k/1588", "=N"), all empty while no query

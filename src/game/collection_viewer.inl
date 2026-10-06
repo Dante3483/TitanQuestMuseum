@@ -17,6 +17,7 @@ DWORD g_viewerMatchesAt=0;
 unsigned g_viewerWorld=0;
 DWORD g_viewerClosedAt=0;
 int g_viewerGroup=0,g_viewerCategoryTop=0,g_viewerRow=0;
+int g_viewerDetail=-1,g_viewerDetailScroll=0,g_viewerDetailMax=0;
 UtWheelAcc g_viewerWheel;
 unsigned g_viewerCollected=0,g_viewerTotal=0;
 std::wstring g_viewerQuery;
@@ -107,6 +108,7 @@ bool viewerRecordMatch(int group,int entry,const std::string& query) {
         (utSearchHit(utSearchNeedleUtf8(parts.details),query) || utSearchHit(utSearchNeedleUtf8(parts.chance),query));
 }
 void viewerRebuild() {
+    g_viewerDetail=-1;g_viewerDetailScroll=0;searchViewerTooltipClear();
     g_viewerEntries.clear();g_viewerSetEntries.clear();g_viewerRow=0;g_viewerWheel.sum=0;
     g_viewerScopeOwned=0;g_viewerScopeTotal=0;
     g_viewerMatchesAt=0;
@@ -141,6 +143,7 @@ void viewerRebuild() {
 void viewerClose() {
     if(!g_viewer)return;
     g_viewer=false;g_viewerSearch=false;g_viewerHelp=false;g_viewerClosedAt=GetTickCount();
+    searchViewerTooltipClear();
     logI("viewer: closed");
 }
 bool viewerPlayer() {
@@ -202,7 +205,9 @@ bool viewerInput(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
     if(msg==WM_MOUSEWHEEL) {
         if(g_viewerHelp)return true;
         const int dir=-utWheelAccumulate(g_viewerWheel,GET_WHEEL_DELTA_WPARAM(wp));
-        if(x<190)viewerCategoryStep(dir*3);else viewerRowStep(dir);
+        if(x<190)viewerCategoryStep(dir*3);
+        else if(viewerHit(x,y,750,88,282,500))g_viewerDetailScroll=(std::max)(0,(std::min)(g_viewerDetailMax,g_viewerDetailScroll+dir*3));
+        else viewerRowStep(dir);
         return true;
     }
     if(msg==WM_LBUTTONDOWN) {
@@ -249,9 +254,10 @@ void viewerDrawTexture(TqCanvas* canvas,const TqTexture* texture,float x,float y
     __try {
         const int tw=g_tq.TextureGetWidth(texture),th=g_tq.TextureGetHeight(texture);
         if(tw>0 && th>0) {
-            float fit=(std::min)(68.0f/tw,94.0f/th);
+            float fit=(std::min)(60.0f/tw,78.0f/th);
             if(small)fit=(std::min)(fit,1.35f);
-            const TqRect target={g_viewerRect.x+(x+43-tw*fit*0.5f)*s,g_viewerRect.y+(y+53-th*fit*0.5f)*s,tw*fit*s,th*fit*s};
+            // Center within the icon area, below the star and above the unknown marker.
+            const TqRect target={g_viewerRect.x+(x+43-tw*fit*0.5f)*s,g_viewerRect.y+(y+60-th*fit*0.5f)*s,tw*fit*s,th*fit*s};
             const TqRect source={0,0,float(tw),float(th)};
             const TqColor tint=collected?TqColor{1,1,1,1}:TqColor{0,0,0,1};
             g_tq.CanvasRenderRectTex(canvas,&target,&source,texture,&tint,nullptr,nullptr);
@@ -443,7 +449,7 @@ void viewerDraw() {
         if(texture && g_tq.CanvasRenderRectTex && g_tq.TextureGetWidth && g_tq.TextureGetHeight) {
             viewerDrawTexture(canvas,texture,x,y,s,entry.count!=0,info.footW==1 && info.footH==1);
         }
-        label(x+8,y+98,70,18,entry.count?L"+":L"???",entry.count?color:Color{0.5f,0.48f,0.42f,1});
+        if(!entry.count)label(x+8,y+98,70,18,L"???",{0.5f,0.48f,0.42f,1});
         if(matched)renderer.outline(rect(x+3,y+3,80,114),{0.38f,0.79f,1,1},2*s);
         const bool favorite=g_viewerFavoriteRecords.count(std::string(info.record))!=0;
         const TqColor background=matched?TqColor{0.15f,0.30f,0.40f,1}:entry.count?TqColor{color.r*0.18f,color.g*0.18f,color.b*0.18f,1}:TqColor{0.18f,0.16f,0.12f,1};
@@ -471,18 +477,75 @@ void viewerDraw() {
         if(g_cfg.viewerHotkey>='A' && g_cfg.viewerHotkey<='Z')keyName[0]=wchar_t(g_cfg.viewerHotkey);
         else GetKeyNameTextW(LONG(MapVirtualKeyW(UINT(g_cfg.viewerHotkey),MAPVK_VK_TO_VSC)<<16),keyName,64);
     }
-    const int chosen=hoveredItem;
+    if(hoveredItem>=0) {
+        if(g_viewerDetail!=hoveredItem){g_viewerDetailScroll=0;g_viewerDetailMax=0;}
+        g_viewerDetail=hoveredItem;
+    } else if(!viewerHit(mx,my,738,88,294,500))g_viewerDetail=-1;
+    const int chosen=g_viewerDetail;
     if(chosen>=0 && chosen<int(g_viewerEntries.size())) {
         const auto& entry=g_viewerEntries[size_t(chosen)];const auto& info=*entry.info;
         const std::string name(info.name),record(info.record);
-        label(760,96,262,28,entry.count?viewerWide(name.c_str()):L"???");
-        if(entry.count)label(760,126,262,28,viewerWide(museum::i18n::text("museum.tooltip.collected")));
         if(entry.count) {
-            swprintf_s(count,L"%u",entry.count);
-            label(760,160,270,28,viewerWide(museum::i18n::text("museum.viewer.copies"))+L": "+count);
-            swprintf_s(count,L"%u",unsigned(info.levelRequirement));
-            label(760,194,270,28,viewerWide(museum::i18n::text("museum.viewer.level"))+L": "+count);
+            const auto* lines=searchViewerTooltip(record.c_str());
+            static std::vector<ViewerTooltipLine> wrapped;
+            static std::string wrappedRecord;
+            static float wrappedScale=0;
+            static bool wrappedReady=false;
+            std::wstring title=viewerWide(name.c_str());
+            Color titleColor={0.85f,0.78f,0.56f,1};
+            if(lines)for(const auto& line:*lines) {
+                if(line.cls>=0x02 && line.cls<=0x0D) {
+                    title=line.text;
+                    if(line.cls==0x04)titleColor={0.25f,1,0.25f,1};
+                    else if(line.cls==0x05)titleColor={0,0.64f,1,1};
+                    else if(line.cls==0x06)titleColor={0.85f,0.02f,1,1};
+                    break;
+                }
+            }
+            label(760,96,262,28,title,titleColor);
+            if(!lines){wrapped.clear();wrappedReady=false;}
+            if(lines && (!wrappedReady || wrappedRecord!=record || wrappedScale!=s)) {
+              wrapped.clear();wrappedRecord=record;wrappedScale=s;wrappedReady=true;
+              for(const auto& line:*lines) {
+                // The main name is a fixed header, shared with the unknown-item layout.
+                if(line.cls>=0x01 && line.cls<=0x0D)continue;
+                std::wstring rest=line.text;
+                while(!rest.empty()) {
+                    size_t n=rest.size();
+                    while(n>1 && renderer.measure(rest.substr(0,n).c_str(),int(14*s))>262*s)--n;
+                    if(n<rest.size()) {
+                        const size_t space=rest.rfind(L' ',n);
+                        if(space!=std::wstring::npos && space>0)n=space;
+                    }
+                    wrapped.push_back({rest.substr(0,n),line.cls});rest.erase(0,n);
+                    while(!rest.empty() && rest.front()==L' ')rest.erase(0,1);
+                }
+              }
+            }
+            constexpr int visible=19;
+            g_viewerDetailMax=(std::max)(0,int(wrapped.size())-visible);
+            g_viewerDetailScroll=(std::min)(g_viewerDetailScroll,g_viewerDetailMax);
+            if(!lines) {
+                label(760,136,262,22,viewerWide(museum::i18n::text(searchViewerTooltipPending()?"museum.viewer.stats.pending":"museum.viewer.stats.unavailable")));
+            }
+            for(int row=0;row<visible && row+g_viewerDetailScroll<int(wrapped.size());++row) {
+                const auto& line=wrapped[size_t(row+g_viewerDetailScroll)];
+                Color tint={0.85f,0.78f,0.56f,1};
+                if(line.cls==0x0F)tint={1,1,1,1};
+                else if(line.cls==0x10 || line.cls==0x1A)tint={0,0.64f,1,1};
+                else if(line.cls==0x12 || line.cls==0x16)tint={0.25f,1,0.25f,1};
+                else if(line.cls==0x04)tint={0.25f,1,0.25f,1};
+                else if(line.cls==0x05)tint={0,0.64f,1,1};
+                else if(line.cls==0x06)tint={0.85f,0.02f,1,1};
+                else if(line.cls==kUtSearchClsRequirements)tint={0.65f,0.63f,0.57f,1};
+                label(760,136+row*22.0f,262,22,line.text,tint);
+            }
+            if(g_viewerDetailMax) {
+                swprintf_s(count,L"%d / %zu",g_viewerDetailScroll+1,wrapped.size());
+                label(760,562,262,16,count,{0.65f,0.63f,0.57f,1},TextAlign::Right);
+            }
         } else {
+            label(760,96,262,28,L"???");
             TooltipSourceText source;int rows=0;
             for(int i=0;i<10 && tooltipSourceText(record.c_str(),size_t(i),source);++i) {
                 const float y=136+float(i)*44;
