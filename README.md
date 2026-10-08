@@ -1,41 +1,50 @@
-# Titan Quest Museum
+# Titan Quest Toolkit
 
-Current release: **1.0.2** (local Git tag `v1.0.2`).
+Three x86 ASI modules for Titan Quest Anniversary Edition 2.10 in one repository.
 
-Standalone native x86 mod for Titan Quest Anniversary Edition, with Discovery,
-Monster Infrequents, Owned filtering, property Search, wheel paging and a new
-four-row caravan extension panel.
+| Folder | Module | Responsibility |
+| --- | --- | --- |
+| `core/` | `TitanQuestCore.asi` | Shared archive/catalogue generation, database, live drop model, frame/input API and native drawing services |
+| `museum/` | `TitanQuestMuseum.asi` | Collection, saved progress, storage, Museum UI and game hooks specific to these features |
+| `farm-radar/` | `TitanQuestFarmRadar.asi` | Nearby living-creature detection, radar panel, F8 and its own configuration |
 
-Copy `dist/TitanQuestMuseum.asi` into the ASI loader's `scripts` plugin directory.
-Disable the old Unique Collection Tab plugin first. On startup Museum preserves
-the reference journal files by copying missing collections to its own directory.
+Both plugins consume Core. FarmRadar does not require Museum. Museum does not
+require FarmRadar. Core is required by either plugin and generates its database
+when necessary even when Museum is absent. Plugins resolve `TQT_GetCoreApi` at
+runtime, wait for the provider, and never share CRT/STL allocations across ASIs.
 
-Read [BUILDING.md](BUILDING.md), [ARCHITECTURE.md](ARCHITECTURE.md) and
-[RUNTIME_TESTS.md](RUNTIME_TESTS.md). The current build is compile verified;
-in-game verification is pending.
+## Build and install
 
-C opens a centered, read-only collection viewer while a character is loaded and
-the caravan is closed. Esc, C or X closes it. Use the left category list (wheel
-to scroll), the wheel over the grid to scroll rows, and the Museum search
-or Owned filter. Hover an item to see its details. Unknown
-items show silhouettes and the existing contextual drop sources; stored items
-show the game tooltip of the newest stored journal instance, with its rolled
-properties and full affixed name. Wheel over the right panel scrolls long text.
-A temporary item is reconstructed only during game Update, checked against the
-saved identity, captured through the existing tooltip path and destroyed. The viewer
-writes no journal rows, and cannot deposit, withdraw or duplicate items.
-Its navigation and search are independent of the caravan. Mouse and key input
-are claimed through the existing native input hooks while it is open; this must
-still be verified in game. The game continues running behind the viewer.
+Run `build.bat` for all three modules. The binaries and matching PDBs are published
+under each component's `dist/`. `core/dist/TitanQuestCore.lib` is only a build/test
+artifact; do not install it. Core owns the model/solver; Museum links only its
+catalogue-file reader from the auxiliary library.
 
-The standalone viewer key is [view] viewer_hotkey=67 (Windows VK_C). Set it to 0 to disable the shortcut. INI version 18 adds this key through the existing settings migration; other settings are retained.
+Close the game and copy `core/dist/TitanQuestCore.asi` into the ASI loader's
+`scripts/` directory. Copy either or both matching plugin ASIs into the same
+folder. Replace the old Museum and radar binaries if installed; old radar builds
+that depend on Museum must not be mixed with this release. For radar only, install
+Core and FarmRadar and remove/disable the Museum ASI with the game closed.
 
-Viewer search keeps items in place and highlights matches in blue, including categories and set cards. It shares the Museum property index and also searches the current best drop source name/details/displayed chance. The property index fills in the background; source calculations are unchanged.
+Keep the existing `scripts/TitanQuestMuseum/` and `scripts/TitanQuestFarmRadar/`
+folders and all collection/save files. Core creates its own `scripts/TitanQuestCore/`
+folder, log, INI and generated shared data. It does not delete the old Museum data.
+The first Core launch may take time to generate data and gray icons.
 
-The viewer remembers category/set/favorites mode, Owned filter, query, category-list offset and item row between openings in the current game process, separately per journal collection set. Reopening clamps offsets to the current list. Item name/property matches require a stored journal instance; set names and contextual sources remain searchable for unknown items. The Shift comparison experiment was removed.
+`TitanQuestCore.ini` contains `[core] text_language=EN` (or RU etc.). On its first
+launch Core adopts the existing Museum `[advanced] text_language` if available,
+otherwise EN. Change the Core setting with the game closed and restart; the data
+stamp then regenerates the common localized catalogue. Museum's UI translations
+and collection settings remain in its own folder.
 
-Viewer hover borders use one blue colour. Unknown item question marks use the
-game's native item name colour, including Rare equipment and artifacts. Colours
-are cached, with at most one missing record resolved per game Update.
+Radar defaults to radius 30 and F8. Its configuration/log location is unchanged.
+The old sibling FarmRadar source directory is preserved as a migration copy;
+current development takes place in this repository's `farm-radar/` folder.
 
-See [release notes](research/RELEASE_1.0.2.md) for scope and verification limits.
+## Verification
+
+Run `core/tools/test.bat` for source-service contracts, `museum/tools/test.bat`
+for Museum/host/source regressions and `farm-radar/tools/test.bat` for radar rules
+and layout. `test.bat` runs them sequentially. See `VERIFICATION.md` for results and
+known catalogue-fixture/memory-test failures. New standalone Core hooks still need
+in-game verification with Core+Radar, Core+Museum and all three modules.

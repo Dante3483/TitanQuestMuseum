@@ -1,0 +1,4 @@
+build/
+dist/*.pdb
+dist/*.previous.*
+tools/__pycache__/
