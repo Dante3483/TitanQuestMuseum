@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <map>
 #include <string>
+#include "tqt_radar.h"
 namespace integration {
 struct TqPtrVector {const void** first;const void** last;const void** end;};
 static_assert(sizeof(TqPtrVector)==12,"engine x86 vector ABI");
@@ -21,5 +22,7 @@ const void* radarLocalPlayer();
 int radarCanvasWidth();int radarCanvasHeight();
 const std::map<std::string,std::string>& tooltipFarmTargets();
 unsigned tooltipSourceRevision();
+bool radarHasInspector();
+uint32_t radarInspect(const TqtRadarScanV1*,TqtRadarLootV1*,uint32_t capacity);
 bool searchFieldFocused();bool panelViewerActive();
 }

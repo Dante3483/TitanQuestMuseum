@@ -14,7 +14,7 @@ inline double radarDistanceSquared(const RadarPoint& a,const RadarPoint& b) {
     const double d=x*x+y*y+z*z;
     return std::isfinite(d)?d:-1;
 }
-struct RadarEntry {std::string name;double distanceSquared=0;};
+struct RadarEntry {std::string name;double distanceSquared=0;bool highlighted=false;std::string item;};
 inline void radarRemember(std::map<std::string,double>& nearest,const std::string& name,
                           double distanceSquared,double radius) {
     if(name.empty() || !std::isfinite(radius) || radius<=0 ||

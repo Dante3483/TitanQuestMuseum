@@ -12,7 +12,7 @@ public:
     int offset() const{return offset_;}
 private:
     Rect bounds_={};int visible_=0,offset_=0;bool shown_=false;
-    struct Label {std::string name;std::wstring text;int font=0;float width=0;};
+    struct Label {std::string name,item;std::wstring text,itemText;int font=0;float width=0;};
     std::vector<Label> labels_;
 };
 }

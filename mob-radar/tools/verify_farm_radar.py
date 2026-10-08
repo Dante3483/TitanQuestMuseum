@@ -54,5 +54,16 @@ for class_name in ('Monster', 'Ormenos'):
     print(f'PASS: {class_name} inherits Character::IsAlive at slot 86')
 print('PASS: WorldCoords = 52 bytes, hidden output argument, WorldVec3 prefix = Region* + Vec3')
 print('PASS: world position includes integer region offsets; separate world index available')
+description = '?GetGameDescription@Monster@GAME@@UBE?AV?$basic_string@GU?$char_traits@G@std@@V?$allocator@G@2@@std@@_N0@Z'
+for class_name in ('Monster', 'Ormenos'):
+    vt = actors.offset(actors.exports[f'??_7{class_name}@GAME@@6B@'])
+    assert actors.u32(vt + 63 * 4) == actors.base + actors.exports[description]
+assert actors.body(description, 384)[370:373] == bytes.fromhex('c20c00')
+assert actors.body('?GetInventoryItems@Character@GAME@@QBEABV?$vector@IV?$allocator@I@std@@@std@@XZ', 7) == bytes.fromhex('8d81a4070000c3')
+assert actors.body('?GetControllerId@Character@GAME@@QBE?BIXZ', 7) == bytes.fromhex('8b81100c0000c3')
+assert actors.body('?GetEquipmentCtrl@ControllerCharacter@GAME@@QAEAAVEquipmentCtrl@2@XZ', 7) == bytes.fromhex('8d81f0000000c3')
+for slot in ('Head', 'UpperBody', 'Forearm', 'LowerBody', 'HandLeft', 'HandRight', 'Finger1', 'Finger2', 'Neck', 'Artifact'):
+    assert f'?GetItem_{slot}@EquipmentCtrl@GAME@@QBEIXZ' in actors.exports
+print('PASS: MuseumRadar inventory/equipment accessors, monster name slot and hidden-string return ABI')
 for label, pe in [('Engine.dll', engine), ('Game.dll', actors)]:
     print(label, 'SHA256', hashlib.sha256(pe.data).hexdigest())

@@ -98,3 +98,11 @@ MobRadar's versioned C API (`../core/include/tqt_radar.h`). Core API v2 is requi
 On first launch MobRadar copies the old `TitanQuestFarmRadar.ini` into its new
 settings folder if no new INI exists. Remove the old `TitanQuestFarmRadar.asi`
 from the loader directory with the game closed to avoid duplicate panels.
+
+MuseumRadar can also supply highlighted real inventory/equipment entries through
+MobRadar API v2. MobRadar shares its existing scan snapshot only during the
+inspection callback; the add-on decides catalogue membership and conceals unknown
+item names. These two-line entries appear before ordinary best-source names,
+including when the filtered best-source list is empty. MobRadar without the
+add-on retains its existing panel behavior. The inspector updates once per second;
+API v1 remains available for older collection-only consumers.

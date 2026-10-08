@@ -45,3 +45,16 @@ require debug mode; errors and collection safety records remain visible at info.
 Slow scan warnings are limited to once per minute and repeated Core frame faults
 to once per 30 seconds. No tests were run for this logging-only change at the
 user's request; all four modules were rebuilt and the root dist refreshed.
+
+## Real inventory highlighting
+
+- MobRadar panel/rules/cache: 37 checks, zero failures, including separate loot
+  captions, highlighting, unknown labels, layout bounds and cache invalidation.
+- MuseumRadar reader/cache/disclosure rules: 15 checks, zero failures, including
+  the supplied 92-record journal and unknown/unavailable collection concealment.
+- Installed AE binaries: read-only audit confirms inventory/controller/equipment
+  accessor bodies, all ten slot exports, Monster/Ormenos name slot 63 and the
+  description's hidden output pointer plus two bool arguments (ret 12).
+- Both radar binaries rebuilt; Core API and Museum source are unchanged.
+- Inventory/equipment discovery and actual name rendering still need in-game
+  verification; deferred death-time loot cannot be inspected before creation.

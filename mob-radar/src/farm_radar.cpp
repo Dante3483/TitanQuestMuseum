@@ -5,6 +5,7 @@
 #include <cstring>
 #include <cstdint>
 #include <unordered_map>
+#include <set>
 
 namespace integration { namespace {
 struct Vec3 {float x,y,z;};
@@ -18,10 +19,12 @@ using WorldIndex=int(__thiscall*)(const void*);
 using Alive=bool(__thiscall*)(const void*);
 Coords getCoords=nullptr;Position getWorldPosition=nullptr;WorldIndex getWorldIndex=nullptr;
 Alive isAlive=nullptr;
+const void* monsterDescription=nullptr;
 bool resolved=false,failed=false,world=false,visible=true;
 int lastConfig=-1,lastRadius=0;unsigned lastRevision=0;
 DWORD lastScan=0;const void* lastPlayer=nullptr;
-std::vector<museum::RadarEntry> rows;
+std::vector<museum::RadarEntry> rows,lootRows;
+std::set<std::string> lootNames;DWORD lastLootScan=0;
 museum::ui::FarmRadarPanel panel;
 constexpr size_t aliveSlot=86;
 
@@ -33,6 +36,9 @@ bool bindApis(){
     getWorldIndex=reinterpret_cast<WorldIndex>(GetProcAddress(e,"?GetWorldIndex@Region@GAME@@QBEHXZ"));
     isAlive=reinterpret_cast<Alive>(GetProcAddress(g,"?IsAlive@Character@GAME@@UBE_NXZ"));
     const auto* monster=reinterpret_cast<const void* const*>(GetProcAddress(g,"??_7Monster@GAME@@6B@"));
+    const void* descriptionEntry=nullptr;
+    monsterDescription=GetProcAddress(g,"?GetGameDescription@Monster@GAME@@UBE?AV?$basic_string@GU?$char_traits@G@std@@V?$allocator@G@2@@std@@_N0@Z");
+    if(!monster||!safeRead(monster+63,&descriptionEntry,sizeof(descriptionEntry))||descriptionEntry!=monsterDescription)monsterDescription=nullptr;
     const unsigned char coordsTail[]={0x8b,0x44,0x24,0x44,0x8d,0xb1,0xa0,0,0,0,0xb9,0x0d,0,0,0};
     const unsigned char positionPrefix[]={0x83,0xec,0x0c,0x8b,0x01,0xf3,0x0f,0x7e,0x40,0x2c,0x66,0x0f,0x6e,0x58,0x34};
     const unsigned char indexBody[]={0x8b,0x41,0x28,0xc3};
@@ -114,9 +120,17 @@ bool creatureClass(const void* actor){
         entry==reinterpret_cast<const void*>(isAlive);
     classes.emplace(table,candidate);return candidate;
 }
+bool monsterClass(const void* actor){
+    const void* table=nullptr;const void* entry=nullptr;
+    return monsterDescription&&safeRead(actor,&table,sizeof(table))&&table&&
+        safeRead(static_cast<const unsigned char*>(table)+63*sizeof(void*),&entry,sizeof(entry))&&entry==monsterDescription;
+}
 std::vector<museum::RadarEntry> scan(const void* player,const museum::RadarPoint& origin){
     LARGE_INTEGER started={},finished={},frequency={};QueryPerformanceCounter(&started);
     TqPtrVector list={};std::map<std::string,double> nearest;
+    const DWORD now=GetTickCount();
+    const bool inspect=radarHasInspector()&&(!lastLootScan||now-lastLootScan>=1000);
+    std::vector<TqtNearbyMobV1> nearby;
     bool ok=listObjects(&list);
     const uintptr_t a=reinterpret_cast<uintptr_t>(list.first),b=reinterpret_cast<uintptr_t>(list.last),
                     c=reinterpret_cast<uintptr_t>(list.end);
@@ -129,12 +143,30 @@ std::vector<museum::RadarEntry> scan(const void* player,const museum::RadarPoint
             if(!obj || obj==player)continue;
             if(!creatureClass(obj))continue;
             if(!recordName(obj,record)){ok=false;break;}
-            const auto found=targets.find(record);if(found==targets.end())continue;
+            const auto found=targets.find(record);
+            const bool inspectMonster=inspect&&monsterClass(obj);
+            if(found==targets.end()&&!inspectMonster)continue;
             bool live=false;museum::RadarPoint p;
             if(!creaturePoint(obj,&live,&p)){ok=false;break;}
             if(live){
                 const double distance=museum::radarDistanceSquared(origin,p);
-                museum::radarRemember(nearest,found->second,distance,g_cfg.farmRadarRadius);
+                if(found!=targets.end())museum::radarRemember(nearest,found->second,distance,g_cfg.farmRadarRadius);
+                if(inspectMonster&&distance>=0&&distance<=double(g_cfg.farmRadarRadius)*g_cfg.farmRadarRadius){
+                    TqtNearbyMobV1 mob={};mob.actor=obj;mob.distanceSquared=distance;
+                    std::memcpy(mob.record,record,sizeof(record));nearby.push_back(mob);
+                }
+            }
+        }
+        if(ok&&inspect){
+            std::sort(nearby.begin(),nearby.end(),[](const auto& x,const auto& y){return x.distanceSquared<y.distanceSquared;});
+            if(nearby.size()>256)nearby.resize(256);
+            const TqtRadarScanV1 snapshot={sizeof(TqtRadarScanV1),list.first,uint32_t((b-a)/sizeof(void*)),nearby.data(),uint32_t(nearby.size())};
+            static std::vector<TqtRadarLootV1> output(256);
+            const uint32_t count=radarInspect(&snapshot,output.data(),uint32_t(output.size()));
+            lootRows.clear();lootNames.clear();lastLootScan=now;
+            for(uint32_t i=0;i<count;++i){const auto& row=output[i];
+                if(row.mobIndex>=nearby.size()||!std::memchr(row.mobName,0,sizeof(row.mobName))||!std::memchr(row.itemName,0,sizeof(row.itemName))||!row.mobName[0]||!row.itemName[0])continue;
+                lootRows.push_back({row.mobName,nearby[row.mobIndex].distanceSquared,true,row.itemName});lootNames.insert(row.mobName);
             }
         }
     } catch(...){freeObjects(&list);throw;}
@@ -143,19 +175,20 @@ std::vector<museum::RadarEntry> scan(const void* player,const museum::RadarPoint
     QueryPerformanceCounter(&finished);QueryPerformanceFrequency(&frequency);
     const double elapsed=frequency.QuadPart?1000.0*double(finished.QuadPart-started.QuadPart)/double(frequency.QuadPart):0;
     static DWORD lastSlowReport=0;static bool slowReported=false;
-    const DWORD now=GetTickCount();
     if(elapsed>=8.0&&(!slowReported||now-lastSlowReport>=60000)){
         lastSlowReport=now;slowReported=true;
         logW("slow scan: %.2f ms, %zu loaded objects (warnings limited to once per minute)",elapsed,(b-a)/sizeof(void*));
     }
-    return museum::radarSorted(nearest);
+    for(const auto& name:lootNames)nearest.erase(name);
+    auto result=lootRows;auto ordinary=museum::radarSorted(nearest);
+    result.insert(result.end(),ordinary.begin(),ordinary.end());return result;
 }
 } // namespace
 void farmRadarFault(const char* reason){
     if(!failed)logW("farm radar: OFF for this session: %s",reason);
     failed=true;rows.clear();panel.reset();
 }
-void farmRadarForget(){world=false;lastPlayer=nullptr;lastScan=0;rows.clear();panel.reset();}
+void farmRadarForget(){world=false;lastPlayer=nullptr;lastScan=0;lastLootScan=0;rows.clear();lootRows.clear();lootNames.clear();panel.reset();}
 void farmRadarTick() try {
     if(lastConfig!=g_cfg.farmRadar){lastConfig=g_cfg.farmRadar;visible=lastConfig!=0;lastScan=0;}
     if(!g_cfg.enabled || !g_cfg.farmRadar || failed){farmRadarForget();return;}
@@ -163,12 +196,13 @@ void farmRadarTick() try {
     const void* player=nullptr;museum::RadarPoint origin;
     if(!readPlayer(&player,&origin)){farmRadarForget();return;}
     world=true;
-    if(player!=lastPlayer){lastPlayer=player;lastScan=0;rows.clear();panel.reset();}
+    if(player!=lastPlayer){lastPlayer=player;lastScan=0;lastLootScan=0;rows.clear();lootRows.clear();lootNames.clear();panel.reset();}
     if(!visible){rows.clear();panel.reset();return;}
     const DWORD now=GetTickCount();const unsigned revision=tooltipSourceRevision();
     if(lastScan && now-lastScan<250 && lastRevision==revision && lastRadius==g_cfg.farmRadarRadius)return;
     lastScan=now;lastRevision=revision;lastRadius=g_cfg.farmRadarRadius;
-    if(tooltipFarmTargets().empty()){rows.clear();panel.reset();return;}
+    if(tooltipFarmTargets().empty()&&!radarHasInspector()){rows.clear();panel.reset();return;}
+    if(tooltipFarmTargets().empty()&&lastLootScan&&now-lastLootScan<1000){rows=lootRows;return;}
     rows=scan(player,origin);
 } catch(...){farmRadarFault("scan exception");}
 bool farmRadarShown(){return world&&visible&&!failed&&g_cfg.enabled&&g_cfg.farmRadar;}

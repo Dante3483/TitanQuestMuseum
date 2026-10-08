@@ -2,11 +2,25 @@
 
 #include <cwchar>
 namespace museum::ui {
+namespace {
+std::wstring fitted(Renderer& r,const std::string& value,int font,float width){
+    wchar_t buffer[1024];widen(value.c_str(),buffer,1024);std::wstring text=buffer;
+    if(r.measure(text.c_str(),font)>width){
+        while(!text.empty()&&r.measure((text+L"\u2026").c_str(),font)>width){
+            text.pop_back();if(!text.empty()&&text.back()>=0xD800&&text.back()<=0xDBFF)text.pop_back();
+        }
+        text+=L"\u2026";
+    }
+    return text;
+}
+}
+
 void FarmRadarPanel::draw(Renderer& r,int width,int height,const std::vector<RadarEntry>& rows) {
     shown_=false;
     if(width<320 || height<240)return;
     const float scale=(std::max)(0.75f,(std::min)(1.5f,height/900.0f));
-    const float margin=18*scale,padding=14*scale,rowHeight=25*scale;
+    const bool hasItems=std::any_of(rows.begin(),rows.end(),[](const auto& row){return !row.item.empty();});
+    const float margin=18*scale,padding=14*scale,rowHeight=(hasItems?44:25)*scale;
     visible_=(std::min)(8,(std::max)(1,int((height*0.28f-2*padding)/rowHeight)));
     offset_=radarClampOffset(offset_,int(rows.size()),visible_);
     const int count=(std::min)(visible_,int(rows.size())-offset_);
@@ -19,29 +33,26 @@ void FarmRadarPanel::draw(Renderer& r,int width,int height,const std::vector<Rad
     r.fill({b.x+scale,b.y+scale,b.w-2*scale,b.h*0.45f},{0.11f,0.105f,0.077f,0.82f});
     r.outline(b,{0.39f,0.33f,0.19f,0.95f},scale);
     r.fill({b.x,b.y,2*scale,b.h},{0.76f,0.61f,0.28f,1});
-    // Restrained brass corner details; the content contains creature names only.
+    // Restrained brass corner details around names and optional Museum loot captions.
     r.fill({b.x,b.y,24*scale,scale},{0.86f,0.73f,0.43f,1});
     r.fill({b.right()-24*scale,b.bottom()-scale,24*scale,scale},{0.67f,0.55f,0.29f,1});
     const int font=(std::max)(10,int(15*scale));
     const float textWidth=b.w-2*padding-8*scale;
     labels_.resize(size_t(count));
     for(int i=0;i<count;++i){
-        auto& label=labels_[size_t(i)];const auto& name=rows[size_t(offset_+i)].name;
-        if(label.name!=name||label.font!=font||label.width!=textWidth){
-            wchar_t buffer[1024];widen(name.c_str(),buffer,1024);
-            label.name=name;label.font=font;label.width=textWidth;label.text=buffer;
-            if(r.measure(label.text.c_str(),font)>textWidth){
-                while(!label.text.empty() && r.measure((label.text+L"\u2026").c_str(),font)>textWidth){
-                    label.text.pop_back();
-                    if(!label.text.empty() && label.text.back()>=0xD800 && label.text.back()<=0xDBFF)label.text.pop_back();
-                }
-                label.text+=L"\u2026";
-            }
+        auto& label=labels_[size_t(i)];const auto& entry=rows[size_t(offset_+i)];
+        const int itemFont=(std::max)(10,int(12*scale));
+        if(label.name!=entry.name||label.item!=entry.item||label.font!=font||label.width!=textWidth){
+            label.name=entry.name;label.item=entry.item;label.font=font;label.width=textWidth;
+            label.text=fitted(r,entry.name,font,textWidth);
+            label.itemText=entry.item.empty()?std::wstring():fitted(r,entry.item,itemFont,textWidth);
         }
         const float top=b.y+padding+i*rowHeight;
-        r.fill({b.x+padding-3*scale,top+rowHeight*0.46f,3*scale,3*scale},{0.76f,0.61f,0.28f,1});
-        r.text({b.x+padding+5*scale,top,textWidth,rowHeight},label.text.c_str(),font,
-               {0.93f,0.87f,0.71f,1},TextAlign::Left);
+        r.fill({b.x+padding-3*scale,top+12*scale,3*scale,3*scale},{0.76f,0.61f,0.28f,1});
+        r.text({b.x+padding+5*scale,top,textWidth,25*scale},label.text.c_str(),font,
+               rows[size_t(offset_+i)].highlighted?Color{1.0f,0.77f,0.27f,1}:Color{0.93f,0.87f,0.71f,1},TextAlign::Left);
+        if(!entry.item.empty())r.text({b.x+padding+5*scale,top+23*scale,textWidth,21*scale},label.itemText.c_str(),itemFont,
+            {1.0f,0.83f,0.45f,1},TextAlign::Left);
     }
     if(int(rows.size())>visible_){
         const float rail=b.h-2*padding;

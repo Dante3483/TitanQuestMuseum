@@ -3,7 +3,7 @@
 Optional x86 ASI add-on connecting **MobRadar** to **Titan Quest Museum**.
 Install matching Core, Museum and MobRadar builds, then copy
 `dist/TitanQuestMuseumRadar.asi` into the game's `scripts/` directory with the game
-closed. It waits for both consumers and uses MobRadar API v1; it does not access
+closed. It waits for both consumers and uses MobRadar API v2; it does not access
 Core directly or create a second database. No separate panel or shortcut is added.
 
 MuseumRadar reads Museum's `tq-uniq-items.jsonl` without modifying it. File metadata
@@ -27,3 +27,19 @@ sources. Remove it only with the game closed; hot unloading is unsupported.
 Run `build.bat` to build with MSVC x86. Run `tools/test.bat` for journal validation
 and cache tests, optionally passing a real journal path. In-game verification of
 the new optional connection remains pending.
+
+## Real inventory highlighting
+
+Nearby living monsters carrying any catalogue item are highlighted independently
+of the best-source filter. The panel shows the monster name and a second item
+line, using `???` until that item has a row in Museum's collected journal. Multiple
+item records produce multiple lines, and already collected loot remains visible.
+Inventory and all ten equipped slots are read without changing game state.
+
+The inspector runs once per second on MobRadar's existing snapshot; borrowed
+actors/objects never survive the callback. It resolves only requested IDs, keeps
+up to 256 nearby monsters/loot rows, and caches panel captions between updates.
+Binaries with unsupported inventory/name ABI refuse this feature while retaining
+the collection filter. Startup/failure logs contain no item names or per-mob traces.
+Install matching MobRadar and MuseumRadar; Core API remains v2. The catalogue-file
+reader is statically linked from Core's auxiliary library, as in Museum.

@@ -18,6 +18,7 @@ HMODULE selfModule=nullptr;FILE* logfile=nullptr;SRWLOCK logLock=SRWLOCK_INIT;
 wchar_t iniPath[MAX_PATH]={};
 const TqmAddonApiV1* host=nullptr;
 const TqtCoreApiV2* coreProvider=nullptr;volatile LONG registered=0;
+TqtRadarInspectorV1 inspector={};SRWLOCK inspectorLock=SRWLOCK_INIT;
 const void* localPlayer=nullptr;int canvasWidth=0,canvasHeight=0;
 bool keyboardBusy=false,sourcesReady=false;
 unsigned sourceRevision=0,appliedRevision=0;
@@ -116,7 +117,7 @@ bool prepareFiles(){
 }
 DWORD WINAPI initialize(void*){
     if(!prepareFiles())return 0;
-    logI("TitanQuestMobRadar 0.4, x86: waiting for TitanQuestCore API v2");
+    logI("TitanQuestMobRadar 0.5, x86: waiting for TitanQuestCore API v2");
     for(unsigned i=0;i<600;++i){
         HMODULE provider=GetModuleHandleW(L"TitanQuestCore.asi");
         if(provider){auto getApi=reinterpret_cast<TqtGetCoreApi>(GetProcAddress(provider,"TQT_GetCoreApi"));
@@ -155,10 +156,36 @@ int32_t TQM_CALL radarReady(){return InterlockedCompareExchange(&registered,0,0)
 int32_t TQM_CALL radarCollection(const TqtCollectedItemV1* rows,uint32_t count,uint32_t known){
     return radarReady()?coreProvider->setCollection(rows,count,known):0;
 }
+int32_t TQM_CALL radarDirectory(char* output,uint32_t capacity){return coreProvider?coreProvider->copyDataDirectory(output,capacity):0;}
+int32_t TQM_CALL radarRegisterInspector(const TqtRadarInspectorV1* incoming){
+    TqtRadarInspectorV1 copy={};
+    if(!incoming||!safeRead(incoming,&copy,sizeof(copy))||copy.size!=sizeof(copy)||!copy.inspect)return 0;
+    HMODULE pinned=nullptr;
+    if(!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_PIN|GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
+        reinterpret_cast<const wchar_t*>(copy.inspect),&pinned))return 0;
+    AcquireSRWLockExclusive(&inspectorLock);
+    const bool accepted=!inspector.inspect;
+    if(accepted)inspector=copy;
+    ReleaseSRWLockExclusive(&inspectorLock);
+    if(accepted)logI("Museum inventory inspector connected");return accepted?1:0;
+}
+bool radarHasInspector(){AcquireSRWLockShared(&inspectorLock);const bool active=inspector.inspect!=nullptr;ReleaseSRWLockShared(&inspectorLock);return active;}
+uint32_t radarInspect(const TqtRadarScanV1* scan,TqtRadarLootV1* output,uint32_t capacity){
+    AcquireSRWLockShared(&inspectorLock);const auto copy=inspector;ReleaseSRWLockShared(&inspectorLock);
+    if(!copy.inspect)return 0;
+    __try {const uint32_t count=copy.inspect(copy.user,scan,output,capacity);return count<=capacity?count:0;}
+    __except(EXCEPTION_EXECUTE_HANDLER){
+        AcquireSRWLockExclusive(&inspectorLock);inspector={};ReleaseSRWLockExclusive(&inspectorLock);
+        logW("Museum inventory inspector disabled after callback fault");return 0;
+    }
+}
 } // namespace integration
 #pragma comment(linker,"/EXPORT:TQT_GetMobRadarApi=_TQT_GetMobRadarApi")
-extern "C" const TqtMobRadarApiV1* TQM_CALL TQT_GetMobRadarApi(uint32_t version){
-    static const TqtMobRadarApiV1 api={sizeof(TqtMobRadarApiV1),TQT_RADAR_API_VERSION,integration::radarReady,integration::radarCollection};
+extern "C" const void* TQM_CALL TQT_GetMobRadarApi(uint32_t version){
+    static const TqtMobRadarApiV1 legacy={sizeof(TqtMobRadarApiV1),1,integration::radarReady,integration::radarCollection};
+    static const TqtMobRadarApiV2 api={sizeof(TqtMobRadarApiV2),TQT_RADAR_API_VERSION,integration::radarReady,integration::radarCollection,
+        integration::radarDirectory,integration::radarRegisterInspector};
+    if(version==1)return &legacy;
     return version==TQT_RADAR_API_VERSION?&api:nullptr;
 }
 BOOL WINAPI DllMain(HINSTANCE module,DWORD reason,LPVOID){

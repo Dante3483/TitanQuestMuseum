@@ -60,7 +60,7 @@ Install MuseumRadar alongside Museum and MobRadar to hide mobs whose every best
 drop is already collected. MuseumRadar validates Museum's JSON journal and reads
 its contents only when changed; it never writes collection data. MobRadar alone
 shows all best sources. `museum-radar/tools/test.bat` checks the reader and cache.
-This uses Core API v2 and MobRadar API v1; update matching Toolkit builds together.
+This uses Core API v2 and MobRadar API v2; update matching Toolkit builds together.
 
 ## Logging
 
@@ -74,3 +74,20 @@ Museum's normal `log_level=info` retains collection deposit/take/recovery record
 for diagnosing lost items. UI geometry, scrolling, rebuilding, opening windows
 and other technical details require explicitly selecting `debug` or `trace`.
 Keep `log_flush_each_line=0` for normal play.
+
+## Real Museum loot
+
+MuseumRadar also inspects existing inventory and equipped items of nearby living
+monsters, regardless of best-source rank or whether drops are already collected.
+It uses MobRadar's borrowed object snapshot once per second; it does not roll loot,
+mutate inventory or enumerate the world's objects a second time. Highlighted
+monster/item pairs appear first in the existing panel, using the same radius and F8.
+An item collected in Museum shows its catalogue name; other Museum items show
+`???`. Missing/invalid collection data conceals all item names. Several different
+Museum item records on one monster produce several entries.
+
+Update MobRadar and MuseumRadar together for this feature. Core and Museum binaries
+need no update for it. MobRadar continues to serve API v1 for previous consumers.
+Loot created only when a monster dies cannot be detected before it exists; this
+feature reports current inventory/equipment and does not guarantee a future drop.
+In-game verification of the new inventory feature is pending.

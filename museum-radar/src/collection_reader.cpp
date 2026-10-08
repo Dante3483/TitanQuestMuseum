@@ -2,10 +2,11 @@
 #include "backend/journal_collection.h"
 #include "backend/file_stamp.h"
 #include "runtime.h"
+#include "loot_inspector.h"
 #include <cwchar>
 #include <cstring>
 namespace integration {namespace {
-const TqtMobRadarApiV1* provider=nullptr;
+const TqtMobRadarApiV2* provider=nullptr;
 radar::JournalCache cache;std::wstring cachedPath;
 radar::FileStamp stamp(const BY_HANDLE_FILE_INFORMATION& info){
     return {(uint64_t(info.nFileSizeHigh)<<32)|info.nFileSizeLow,
@@ -53,8 +54,9 @@ DWORD WINAPI watcher(void*){
                 for(const auto& record:collected){if(record.size()>=sizeof(copied[i].record)){valid=false;break;}
                     std::memcpy(copied[i++].record,record.c_str(),record.size()+1);}
                 if(!valid){copied.clear();collected.clear();}
+                const bool active=known&&valid;
+                setLootCollection(collected,active);
                 if(provider->setCollection(valid&&known?copied.data():nullptr,valid&&known?unsigned(copied.size()):0,valid&&known?1:0)){
-                    const bool active=known&&valid;
                     if(!reported||active!=previousKnown){
                         if(!active&&previousKnown)logW("Museum collection unavailable or invalid; all best sources restored");
                         else logI("Museum filter: %s, %zu collected records",active?"active":"unavailable",collected.size());
@@ -64,13 +66,13 @@ DWORD WINAPI watcher(void*){
             }
         }catch(...){
             if(!faultLogged){faultLogged=true;logW("Museum collection watcher exception; filter reset (further exceptions suppressed)");}
-            provider->setCollection(nullptr,0,0);previousKnown=false;previous.clear();reported=false;
+            setLootCollection({},false);provider->setCollection(nullptr,0,0);previousKnown=false;previous.clear();reported=false;
         }
         Sleep(1000);
     }
 }
 }
-void startCollectionReader(const TqtMobRadarApiV1* api){
+void startCollectionReader(const TqtMobRadarApiV2* api){
     provider=api;HANDLE thread=CreateThread(nullptr,0,watcher,nullptr,0,nullptr);
     if(thread)CloseHandle(thread);else logW("Museum JSON filter: watcher unavailable");
 }

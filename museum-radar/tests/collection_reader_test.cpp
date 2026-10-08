@@ -1,5 +1,6 @@
 #include "backend/journal_collection.h"
 #include "backend/file_stamp.h"
+#include "backend/loot_identity.h"
 #include <cstdio>
 #include <fstream>
 #include <iterator>
@@ -22,6 +23,10 @@ int main(int argc,char** argv){
     check(cache.needsRead(next),"atomic replacement with same size and timestamp requires read");
     cache.forget();
     check(cache.needsRead(initial),"reappearing file requires read");
+    const std::set<std::string> owned={"records/item/known.dbr"};
+    check(radar::lootCaption("records/item/known.dbr","Known item",owned,true)=="Known item","known real loot reveals its name");
+    check(radar::lootCaption("records/item/missing.dbr","Secret name",owned,true)=="???","unknown real loot conceals its name");
+    check(radar::lootCaption("records/item/known.dbr","Known item",owned,false)=="???","unavailable collection never reveals cached identities");
     const std::string header="{\"journal\":\"titan quest uniquetab\",\"format\":1,\"set\":\"tq-uniq-items\",\"entries\":3,\"collected\":2,\"pendingIn\":1,\"pendingOut\":1}\n";
     const std::string text=header+row("")+row("in")+row("out");std::set<std::string> keys;
     check(radar::collectedJournal(text,keys)&&keys.size()==1&&keys.count("records/item/test.dbr"),"copies deduplicated; pending in counts, pending out does not");

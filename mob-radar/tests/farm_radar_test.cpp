@@ -10,13 +10,13 @@ namespace {
 int failures=0,checks=0;
 void check(bool ok,const char* what){++checks;if(!ok){++failures;std::printf("FAIL: %s\n",what);}}
 struct Recorder: museum::ui::Renderer {
-    struct Text {museum::ui::Rect rect;std::wstring text;int size;};
+    struct Text {museum::ui::Rect rect;std::wstring text;int size;museum::ui::Color color;};
     std::vector<Text> captions;std::vector<museum::ui::Rect> fills;
     int measurements=0;
     void fill(museum::ui::Rect r,museum::ui::Color) override{fills.push_back(r);}
     float measure(const wchar_t* text,int size) override{++measurements;return float(std::wcslen(text))*size*0.6f;}
-    void text(museum::ui::Rect r,const wchar_t* text,int size,museum::ui::Color,museum::ui::TextAlign) override{
-        captions.push_back({r,text,size});
+    void text(museum::ui::Rect r,const wchar_t* text,int size,museum::ui::Color color,museum::ui::TextAlign) override{
+        captions.push_back({r,text,size,color});
     }
 };
 
@@ -58,5 +58,18 @@ int main(){
         r.captions.clear();panel.draw(r,resolution.first,resolution.second,{});
         check(r.captions.empty()&&panel.offset()==0,"empty results retain blank panel and clear scroll");
     }
+    Recorder lootRenderer;FarmRadarPanel lootPanel;
+    std::vector<RadarEntry> loot={{"Any monster",16,true,"???"},{"Known monster",25,true,"Known museum item"}};
+    lootPanel.draw(lootRenderer,1920,1080,loot);
+    check(lootRenderer.captions.size()==4,"real loot has separate monster and item captions");
+    check(lootRenderer.captions[1].text==L"???"&&lootRenderer.captions[3].text==L"Known museum item","unknown and known loot captions retained");
+    check(lootRenderer.captions[0].color.r==1.0f,"loot-bearing monster name is highlighted");
+    bool inside=true;for(const auto& caption:lootRenderer.captions)if(caption.rect.bottom()>lootPanel.bounds().bottom())inside=false;
+    check(inside,"two-line loot entries fit in panel");
+    const int before=lootRenderer.measurements;loot[0].distanceSquared=4;
+    lootPanel.draw(lootRenderer,1920,1080,loot);
+    check(lootRenderer.measurements==before,"movement does not remeasure item captions");
+    loot[0].item="Newly collected item";lootPanel.draw(lootRenderer,1920,1080,loot);
+    check(lootRenderer.measurements>before,"newly known item refreshes its caption");
     std::printf("Farm radar: %d checks, %d failures\n",checks,failures);return failures?1:0;
 }
