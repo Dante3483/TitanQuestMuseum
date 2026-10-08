@@ -27,5 +27,15 @@ int main(int argc,char** argv){
     integration::coreTestPublish({},"",{});state.size=sizeof(state);
     check(api->sourceState(&state)&&!state.ready&&state.difficulty==-1,"menu or invalid context clears source readiness");
     check(api->copySourceText(state.revision,nullptr,0,&count)==TQM_COPY_INVALID,"invalid context cannot expose old sources");
+    check(!api->setCollection(nullptr,1,1),"missing collection buffer rejected");
+    TqtCollectedItemV1 item={};strcpy_s(item.record,"Records\\Item\\test.dbr");
+    check(api->setCollection(&item,1,1),"collected records normalized and accepted");
+    state.size=sizeof(state);api->sourceState(&state);const unsigned filteredRevision=state.revision;
+    strcpy_s(item.record,"records/item/test.dbr");
+    check(api->setCollection(&item,1,1)&&api->sourceState(&state)&&state.revision==filteredRevision,"identical collection does not invalidate every frame");
+    strcpy_s(item.record,"invalid");
+    check(!api->setCollection(&item,1,1)&&api->sourceState(&state)&&state.revision==filteredRevision,"invalid snapshot preserves previous collection");
+    check(api->setCollection(nullptr,0,0)&&api->sourceState(&state)&&state.revision!=filteredRevision,"unknown collection restores standalone mode and revises targets");
+
     std::printf("Core source service: %d checks, %d failures\n",checks,failures);return failures?1:0;
 }

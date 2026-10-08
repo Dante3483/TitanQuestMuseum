@@ -1,22 +1,27 @@
 # Titan Quest Toolkit
 
-Three x86 ASI modules for Titan Quest Anniversary Edition 2.10 in one repository.
+Four x86 ASI modules for Titan Quest Anniversary Edition 2.10 in one repository.
 
 | Folder | Module | Responsibility |
 | --- | --- | --- |
 | `core/` | `TitanQuestCore.asi` | Shared archive/catalogue generation, database, live drop model, frame/input API and native drawing services |
 | `museum/` | `TitanQuestMuseum.asi` | Collection, saved progress, storage, Museum UI and game hooks specific to these features |
-| `farm-radar/` | `TitanQuestFarmRadar.asi` | Nearby living-creature detection, radar panel, F8 and its own configuration |
+| `mob-radar/` | `TitanQuestMobRadar.asi` | Nearby living-creature detection, radar panel, F8 and its own configuration |
+| `museum-radar/` | `TitanQuestMuseumRadar.asi` | Optional Museum collection filter for MobRadar |
 
-Both plugins consume Core. FarmRadar does not require Museum. Museum does not
-require FarmRadar. Core is required by either plugin and generates its database
-when necessary even when Museum is absent. Plugins resolve `TQT_GetCoreApi` at
+Museum and MobRadar consume Core. MobRadar does not require Museum. Museum does not
+require MobRadar. MuseumRadar depends on both Museum and MobRadar. Core is required by either plugin and generates its database
+when necessary even when Museum is absent. Museum and MobRadar resolve `TQT_GetCoreApi` at
 runtime, wait for the provider, and never share CRT/STL allocations across ASIs.
 
 ## Build and install
 
-Run `build.bat` for all three modules. The binaries and matching PDBs are published
-under each component's `dist/`. `core/dist/TitanQuestCore.lib` is only a build/test
+Run `build.bat` for all four modules. The binaries and matching PDBs are published
+under each component's `dist/`. After all builds succeed, the four ASI binaries
+are also copied into the repository's root `dist/` for installation.
+Museum's language resources are included in `dist/localization/`; copy that folder
+beside the ASI files when installing.
+`core/dist/TitanQuestCore.lib` is only a build/test
 artifact; do not install it. Core owns the model/solver; Museum links only its
 catalogue-file reader from the auxiliary library.
 
@@ -24,7 +29,7 @@ Close the game and copy `core/dist/TitanQuestCore.asi` into the ASI loader's
 `scripts/` directory. Copy either or both matching plugin ASIs into the same
 folder. Replace the old Museum and radar binaries if installed; old radar builds
 that depend on Museum must not be mixed with this release. For radar only, install
-Core and FarmRadar and remove/disable the Museum ASI with the game closed.
+Core and MobRadar and remove/disable the Museum ASI with the game closed.
 
 Keep the existing `scripts/TitanQuestMuseum/` and `scripts/TitanQuestFarmRadar/`
 folders and all collection/save files. Core creates its own `scripts/TitanQuestCore/`
@@ -37,14 +42,22 @@ otherwise EN. Change the Core setting with the game closed and restart; the data
 stamp then regenerates the common localized catalogue. Museum's UI translations
 and collection settings remain in its own folder.
 
-Radar defaults to radius 30 and F8. Its configuration/log location is unchanged.
+Radar defaults to radius 30 and F8. MobRadar uses `scripts/TitanQuestMobRadar/` and
+copies the previous FarmRadar INI on first launch. Remove `TitanQuestFarmRadar.asi`
+from `scripts/` before installing MobRadar to avoid duplicate panels.
 The old sibling FarmRadar source directory is preserved as a migration copy;
-current development takes place in this repository's `farm-radar/` folder.
+current development takes place in this repository's `mob-radar/` folder.
 
 ## Verification
 
 Run `core/tools/test.bat` for source-service contracts, `museum/tools/test.bat`
-for Museum/host/source regressions and `farm-radar/tools/test.bat` for radar rules
+for Museum/host/source regressions and `mob-radar/tools/test.bat` for radar rules
 and layout. `test.bat` runs them sequentially. See `VERIFICATION.md` for results and
 known catalogue-fixture/memory-test failures. New standalone Core hooks still need
-in-game verification with Core+Radar, Core+Museum and all three modules.
+in-game verification with Core+Radar, Core+Museum and all four modules.
+
+Install MuseumRadar alongside Museum and MobRadar to hide mobs whose every best
+drop is already collected. MuseumRadar validates Museum's JSON journal and reads
+its contents only when changed; it never writes collection data. MobRadar alone
+shows all best sources. `museum-radar/tools/test.bat` checks the reader and cache.
+This uses Core API v2 and MobRadar API v1; update matching Toolkit builds together.

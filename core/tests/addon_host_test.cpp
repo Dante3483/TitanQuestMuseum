@@ -20,6 +20,7 @@ int32_t TQM_CALL coreDataDirectory(char*,uint32_t){return 0;}
 int32_t TQM_CALL coreSourceState(TqtSourceStateV1*){return 0;}
 int32_t TQM_CALL coreSourceText(uint32_t,char*,uint32_t,uint32_t*){return TQM_COPY_INVALID;}
 void TQM_CALL coreKeyboardBusy(uint32_t){}
+int32_t TQM_CALL coreSetCollection(const TqtCollectedItemV1*,uint32_t,uint32_t){return 1;}
 }
 namespace {
 int checks=0,failures=0,frames=0,faults=0,messages=0,keys=0;

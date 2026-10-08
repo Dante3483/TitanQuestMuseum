@@ -23,3 +23,8 @@ __pycache__/
 /museum/data/oracle/
 /farm-radar/build/
 /farm-radar/dist/
+
+/mob-radar/build/
+/mob-radar/dist/
+/museum-radar/build/
+/museum-radar/dist/

@@ -4,7 +4,7 @@ Requires matching `scripts/TitanQuestCore.asi`. The worker waits for Core readin
 before installing Museum-specific hooks. Shared catalogue and drop results come
 from Core; Museum no longer generates the shared database or runs a loot solver.
 Collections, journals, storage and settings remain under `scripts/TitanQuestMuseum/`.
-The FarmRadar plugin is optional and connects directly to Core.
+The MobRadar plugin is optional and connects directly to Core.
 
 # Titan Quest Museum
 
@@ -22,7 +22,7 @@ Read [BUILDING.md](BUILDING.md), [ARCHITECTURE.md](ARCHITECTURE.md) and
 [RUNTIME_TESTS.md](RUNTIME_TESTS.md). The current build is compile verified;
 in-game verification is pending.
 
-Core exposes the shared plugin API. FarmRadar connects directly to Core and
+Core exposes the shared plugin API. MobRadar connects directly to Core and
 works without Museum. Collection files remain here; common generated data now
 lives under the Core data directory. See [Toolkit architecture](../ARCHITECTURE.md).
 
@@ -51,3 +51,7 @@ game's native item name colour, including Rare equipment and artifacts. Colours
 are cached, with at most one missing record resolved per game Update.
 
 See [release notes](research/RELEASE_1.0.2.md) for scope and verification limits.
+
+MuseumRadar is a separate optional add-on depending on Museum and MobRadar. It
+reads the collection journal only when changed and hides completed drops from the
+radar. Museum itself does not publish collection snapshots or require either radar.

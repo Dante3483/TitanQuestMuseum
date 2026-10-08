@@ -12,15 +12,14 @@ if not exist "%ROOT%build\staging" mkdir "%ROOT%build\staging"
 if not exist "%ROOT%dist" mkdir "%ROOT%dist"
 cl /utf-8 /nologo /c /O2 /Oy- /MT /Zi /W4 /WX /EHsc /std:c++17 /GR- /DNDEBUG ^
  /DWIN32_LEAN_AND_MEAN /DNOMINMAX /D_CRT_SECURE_NO_WARNINGS /I"%ROOT%src" /I"%ROOT%..\core\include" ^
- /Fo"%ROOT%build\obj\\" /Fd"%ROOT%build\obj\TitanQuestFarmRadar_cl.pdb" ^
- "%ROOT%src\plugin.cpp" "%ROOT%src\farm_radar.cpp" "%ROOT%src\ui\farm_radar_panel.cpp" "%ROOT%src\ui\text_renderer.cpp"
+ /Fo"%ROOT%build\obj\\" /Fd"%ROOT%build\obj\TitanQuestMuseumRadar_cl.pdb" ^
+ "%ROOT%src\plugin.cpp" "%ROOT%src\collection_reader.cpp"
 if errorlevel 1 exit /b 1
 link /nologo /DLL /MACHINE:X86 /SAFESEH /DYNAMICBASE /NXCOMPAT /OPT:REF /OPT:ICF /Brepro ^
  /INCREMENTAL:NO /DEBUG /PDBALTPATH:%%_PDB%% ^
- /MAP:"%ROOT%build\TitanQuestFarmRadar.map" /PDB:"%ROOT%build\staging\TitanQuestFarmRadar.pdb" ^
- /OUT:"%ROOT%build\staging\TitanQuestFarmRadar.asi" ^
- "%ROOT%build\obj\plugin.obj" "%ROOT%build\obj\farm_radar.obj" ^
- "%ROOT%build\obj\farm_radar_panel.obj" "%ROOT%build\obj\text_renderer.obj" kernel32.lib user32.lib
+ /MAP:"%ROOT%build\TitanQuestMuseumRadar.map" /PDB:"%ROOT%build\staging\TitanQuestMuseumRadar.pdb" ^
+ /OUT:"%ROOT%build\staging\TitanQuestMuseumRadar.asi" ^
+ "%ROOT%build\obj\plugin.obj" "%ROOT%build\obj\collection_reader.obj" kernel32.lib user32.lib
 if errorlevel 1 exit /b 1
 powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%tools\publish.ps1" -ProjectRoot "%ROOT%."
 exit /b %ERRORLEVEL%

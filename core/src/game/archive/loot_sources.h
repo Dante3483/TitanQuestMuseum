@@ -2,6 +2,7 @@
 #include "game/archive/catalogue_gen.h"
 #include <memory>
 #include <map>
+#include <set>
 namespace gen {
 struct LootContext {
     int averageLevel=0,minLevel=0,maxLevel=0,players=0,difficulty=0;
@@ -15,7 +16,8 @@ public:
     ~LootSourceModel();
     bool load(const std::string& path,std::string* error);
     bool calculate(const LootContext&,std::string& output,std::string* error,
-                   std::map<std::string,std::string>* farmTargets=nullptr);
+                   std::map<std::string,std::string>* farmTargets=nullptr,
+                   const std::set<std::string>* collected=nullptr);
 private:
     struct Impl;
     std::unique_ptr<Impl> m_impl;

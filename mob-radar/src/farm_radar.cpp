@@ -4,6 +4,7 @@
 #include "ui/farm_radar_panel.h"
 #include <cstring>
 #include <cstdint>
+#include <unordered_map>
 
 namespace integration { namespace {
 struct Vec3 {float x,y,z;};
@@ -100,11 +101,25 @@ bool creaturePoint(const void* actor,bool* live,museum::RadarPoint* location){
     } __except(EXCEPTION_EXECUTE_HANDLER){ok=false;}
     return ok;
 }
+bool creatureClass(const void* actor){
+    // Cache immutable engine class tables, never actor pointers. Reject sounds,
+    // controllers and items before calling their name accessors.
+    static std::unordered_map<const void*,bool> classes;
+    const void* table=nullptr;
+    if(!safeRead(actor,&table,sizeof(table))||!table)return false;
+    const auto found=classes.find(table);
+    if(found!=classes.end())return found->second;
+    const void* entry=nullptr;
+    const bool candidate=safeRead(static_cast<const unsigned char*>(table)+aliveSlot*sizeof(void*),&entry,sizeof(entry))&&
+        entry==reinterpret_cast<const void*>(isAlive);
+    classes.emplace(table,candidate);return candidate;
+}
 std::vector<museum::RadarEntry> scan(const void* player,const museum::RadarPoint& origin){
+    LARGE_INTEGER started={},finished={},frequency={};QueryPerformanceCounter(&started);
     TqPtrVector list={};std::map<std::string,double> nearest;
     bool ok=listObjects(&list);
     size_t matched=0,alive=0,inRange=0;double closest=1e30;std::string closestRecord;
-    std::map<std::string,size_t> arachnids;
+    size_t creatures=0;
     const uintptr_t a=reinterpret_cast<uintptr_t>(list.first),b=reinterpret_cast<uintptr_t>(list.last),
                     c=reinterpret_cast<uintptr_t>(list.end);
     ok=ok && b>=a && c>=b && (b-a)%sizeof(void*)==0 && (b-a)/sizeof(void*)<=4000000;
@@ -114,8 +129,9 @@ std::vector<museum::RadarEntry> scan(const void* player,const museum::RadarPoint
             const void* obj=nullptr;char record[512]={};
             if(!safeRead(list.first+i,&obj,sizeof(obj))){ok=false;break;}
             if(!obj || obj==player)continue;
+            if(!creatureClass(obj))continue;
+            ++creatures;
             if(!recordName(obj,record)){ok=false;break;}
-            if(std::strstr(record,"arach"))++arachnids[record];
             const auto found=targets.find(record);if(found==targets.end())continue;
             ++matched;
             bool live=false;museum::RadarPoint p;
@@ -130,14 +146,16 @@ std::vector<museum::RadarEntry> scan(const void* player,const museum::RadarPoint
     } catch(...){freeObjects(&list);throw;}
     if(!freeObjects(&list))ok=false;
     if(!ok){farmRadarFault("live object scan failed");return {};}
+    QueryPerformanceCounter(&finished);QueryPerformanceFrequency(&frequency);
+    const double elapsed=frequency.QuadPart?1000.0*double(finished.QuadPart-started.QuadPart)/double(frequency.QuadPart):0;
+    static double peakMs=0;peakMs=(std::max)(peakMs,elapsed);
     static DWORD lastReport=0;const DWORD now=GetTickCount();
     if(!lastReport || now-lastReport>=10000){
         lastReport=now;
-        logI("scan: objects=%zu best-record matches=%zu alive-positioned=%zu within-radius=%zu names=%zu player=(%.2f,%.2f,%.2f) world=%d",
-             (b-a)/sizeof(void*),matched,alive,inRange,nearest.size(),origin.x,origin.y,origin.z,origin.world);
+        logI("scan: objects=%zu creature-candidates=%zu best-record matches=%zu alive-positioned=%zu within-radius=%zu names=%zu time-ms=%.3f peak-ms=%.3f player=(%.2f,%.2f,%.2f) world=%d",
+             (b-a)/sizeof(void*),creatures,matched,alive,inRange,nearest.size(),elapsed,peakMs,origin.x,origin.y,origin.z,origin.world);
+        peakMs=0;
         if(!closestRecord.empty())logI("scan: closest best creature %.2f units: %s",std::sqrt(closest),closestRecord.c_str());
-        for(const auto& entry:arachnids)logI("scan: arachnid record %s instances=%zu eligible=%d",
-             entry.first.c_str(),entry.second,tooltipFarmTargets().count(entry.first)?1:0);
     }
     return museum::radarSorted(nearest);
 }

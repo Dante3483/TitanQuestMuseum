@@ -9,6 +9,7 @@
 #include "tqt_core.h"
 #include "runtime.h"
 #include "farm_radar.h"
+#include "tqt_radar.h"
 
 namespace integration {
 GameApi g_tq;RadarConfig g_cfg;
@@ -16,6 +17,7 @@ namespace {
 HMODULE selfModule=nullptr;FILE* logfile=nullptr;SRWLOCK logLock=SRWLOCK_INIT;
 wchar_t iniPath[MAX_PATH]={};
 const TqmAddonApiV1* host=nullptr;
+const TqtCoreApiV2* coreProvider=nullptr;volatile LONG registered=0;
 const void* localPlayer=nullptr;int canvasWidth=0,canvasHeight=0;
 bool keyboardBusy=false,sourcesReady=false;
 unsigned sourceRevision=0,appliedRevision=0;
@@ -99,21 +101,23 @@ int32_t TQM_CALL onKey(void*,int32_t button,int32_t state,uint32_t busy){
 bool prepareFiles(){
     wchar_t path[MAX_PATH]={};if(!GetModuleFileNameW(selfModule,path,MAX_PATH))return false;
     wchar_t* slash=std::wcsrchr(path,L'\\');if(!slash)return false;slash[1]=0;
-    wchar_t folder[MAX_PATH]={};if(swprintf_s(folder,L"%sTitanQuestFarmRadar",path)<0)return false;
+    wchar_t folder[MAX_PATH]={};if(swprintf_s(folder,L"%sTitanQuestMobRadar",path)<0)return false;
     if(!CreateDirectoryW(folder,nullptr) && GetLastError()!=ERROR_ALREADY_EXISTS)return false;
-    if(swprintf_s(iniPath,L"%s\\TitanQuestFarmRadar.ini",folder)<0)return false;
-    wchar_t logPath[MAX_PATH]={};if(swprintf_s(logPath,L"%s\\TitanQuestFarmRadar.log",folder)<0)return false;
+    if(swprintf_s(iniPath,L"%s\\TitanQuestMobRadar.ini",folder)<0)return false;
+    wchar_t logPath[MAX_PATH]={};if(swprintf_s(logPath,L"%s\\TitanQuestMobRadar.log",folder)<0)return false;
     logfile=_wfsopen(logPath,L"w",_SH_DENYNO);
+    wchar_t legacy[MAX_PATH]={};
+    if(swprintf_s(legacy,L"%sTitanQuestFarmRadar\\TitanQuestFarmRadar.ini",path)>=0)CopyFileW(legacy,iniPath,TRUE);
     HANDLE file=CreateFileW(iniPath,GENERIC_WRITE,FILE_SHARE_READ,nullptr,CREATE_NEW,FILE_ATTRIBUTE_NORMAL,nullptr);
     if(file!=INVALID_HANDLE_VALUE){
-        const char defaults[]="; TitanQuestFarmRadar, dependent Core add-on\r\n; F8 toggles for this game session. Edits reload once per second.\r\n[radar]\r\nenabled=1\r\nhotkey=119\r\nradius=30\r\n";
+        const char defaults[]="; TitanQuestMobRadar, dependent Core add-on\r\n; F8 toggles for this game session. Edits reload once per second.\r\n[radar]\r\nenabled=1\r\nhotkey=119\r\nradius=30\r\n";
         DWORD written=0;WriteFile(file,defaults,sizeof(defaults)-1,&written,nullptr);CloseHandle(file);
     }
     return true;
 }
 DWORD WINAPI initialize(void*){
     if(!prepareFiles())return 0;
-    logI("TitanQuestFarmRadar 0.4, x86: waiting for TitanQuestCore API v1");
+    logI("TitanQuestMobRadar 0.4, x86: waiting for TitanQuestCore API v2");
     for(unsigned i=0;i<600;++i){
         HMODULE provider=GetModuleHandleW(L"TitanQuestCore.asi");
         if(provider){auto getApi=reinterpret_cast<TqtGetCoreApi>(GetProcAddress(provider,"TQT_GetCoreApi"));
@@ -130,6 +134,7 @@ DWORD WINAPI initialize(void*){
             const TqmCallbacksV1 callbacks={sizeof(TqmCallbacksV1),TQM_ADDON_API_VERSION,nullptr,onFrame,onMessage,onKey};
             const unsigned token=host->registerCallbacks(&callbacks);
             if(!token){logW("OFF: Core rejected add-on registration");return 0;}
+            coreProvider=core;InterlockedExchange(&registered,1);
             logI("ON: subscribed to Core frame/input callbacks, registration %u",token);return 0;
         }
         Sleep(200);
@@ -147,7 +152,16 @@ int radarCanvasWidth(){return canvasWidth;}int radarCanvasHeight(){return canvas
 const std::map<std::string,std::string>& tooltipFarmTargets(){return targets;}
 unsigned tooltipSourceRevision(){return sourceRevision;}
 bool searchFieldFocused(){return keyboardBusy;}bool panelViewerActive(){return keyboardBusy;}
+int32_t TQM_CALL radarReady(){return InterlockedCompareExchange(&registered,0,0)&&coreProvider&&coreProvider->isReady();}
+int32_t TQM_CALL radarCollection(const TqtCollectedItemV1* rows,uint32_t count,uint32_t known){
+    return radarReady()?coreProvider->setCollection(rows,count,known):0;
+}
 } // namespace integration
+#pragma comment(linker,"/EXPORT:TQT_GetMobRadarApi=_TQT_GetMobRadarApi")
+extern "C" const TqtMobRadarApiV1* TQM_CALL TQT_GetMobRadarApi(uint32_t version){
+    static const TqtMobRadarApiV1 api={sizeof(TqtMobRadarApiV1),TQT_RADAR_API_VERSION,integration::radarReady,integration::radarCollection};
+    return version==TQT_RADAR_API_VERSION?&api:nullptr;
+}
 BOOL WINAPI DllMain(HINSTANCE module,DWORD reason,LPVOID){
     if(reason==DLL_PROCESS_ATTACH){integration::selfModule=module;DisableThreadLibraryCalls(module);
         HANDLE thread=CreateThread(nullptr,0,integration::initialize,nullptr,0,nullptr);if(thread)CloseHandle(thread);}

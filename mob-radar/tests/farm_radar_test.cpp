@@ -12,8 +12,9 @@ void check(bool ok,const char* what){++checks;if(!ok){++failures;std::printf("FA
 struct Recorder: museum::ui::Renderer {
     struct Text {museum::ui::Rect rect;std::wstring text;int size;};
     std::vector<Text> captions;std::vector<museum::ui::Rect> fills;
+    int measurements=0;
     void fill(museum::ui::Rect r,museum::ui::Color) override{fills.push_back(r);}
-    float measure(const wchar_t* text,int size) override{return float(std::wcslen(text))*size*0.6f;}
+    float measure(const wchar_t* text,int size) override{++measurements;return float(std::wcslen(text))*size*0.6f;}
     void text(museum::ui::Rect r,const wchar_t* text,int size,museum::ui::Color,museum::ui::TextAlign) override{
         captions.push_back({r,text,size});
     }
@@ -43,6 +44,15 @@ int main(){
         bool fits=true;for(const auto& caption:r.captions)
             if(r.measure(caption.text.c_str(),caption.size)>caption.rect.w || caption.rect.bottom()>b.bottom())fits=false;
         check(fits,"localized names stay within panel");
+        const int before=r.measurements;
+        panel.draw(r,resolution.first,resolution.second,names);
+        check(r.measurements==before,"unchanged frame reuses text measurements");
+        names[0].distanceSquared+=1;
+        panel.draw(r,resolution.first,resolution.second,names);
+        check(r.measurements==before,"movement alone does not remeasure labels");
+        names[0].name="Changed creature";
+        panel.draw(r,resolution.first,resolution.second,names);
+        check(r.measurements>before,"changed name invalidates text cache");
         check(!panel.scroll(b.right()+1,b.y,1,names.size()),"wheel outside panel not claimed");
         check(panel.scroll(b.x+5,b.y+5,100,names.size()) && panel.offset()==20-panel.visibleRows(),"wheel reaches last names without overflow");
         r.captions.clear();panel.draw(r,resolution.first,resolution.second,{});

@@ -24,19 +24,23 @@ void FarmRadarPanel::draw(Renderer& r,int width,int height,const std::vector<Rad
     r.fill({b.right()-24*scale,b.bottom()-scale,24*scale,scale},{0.67f,0.55f,0.29f,1});
     const int font=(std::max)(10,int(15*scale));
     const float textWidth=b.w-2*padding-8*scale;
+    labels_.resize(size_t(count));
     for(int i=0;i<count;++i){
-        wchar_t buffer[1024];widen(rows[size_t(offset_+i)].name.c_str(),buffer,1024);
-        std::wstring text=buffer;
-        if(r.measure(text.c_str(),font)>textWidth){
-            while(!text.empty() && r.measure((text+L"\u2026").c_str(),font)>textWidth){
-                text.pop_back();
-                if(!text.empty() && text.back()>=0xD800 && text.back()<=0xDBFF)text.pop_back();
+        auto& label=labels_[size_t(i)];const auto& name=rows[size_t(offset_+i)].name;
+        if(label.name!=name||label.font!=font||label.width!=textWidth){
+            wchar_t buffer[1024];widen(name.c_str(),buffer,1024);
+            label.name=name;label.font=font;label.width=textWidth;label.text=buffer;
+            if(r.measure(label.text.c_str(),font)>textWidth){
+                while(!label.text.empty() && r.measure((label.text+L"\u2026").c_str(),font)>textWidth){
+                    label.text.pop_back();
+                    if(!label.text.empty() && label.text.back()>=0xD800 && label.text.back()<=0xDBFF)label.text.pop_back();
+                }
+                label.text+=L"\u2026";
             }
-            text+=L"\u2026";
         }
         const float top=b.y+padding+i*rowHeight;
         r.fill({b.x+padding-3*scale,top+rowHeight*0.46f,3*scale,3*scale},{0.76f,0.61f,0.28f,1});
-        r.text({b.x+padding+5*scale,top,textWidth,rowHeight},text.c_str(),font,
+        r.text({b.x+padding+5*scale,top,textWidth,rowHeight},label.text.c_str(),font,
                {0.93f,0.87f,0.71f,1},TextAlign::Left);
     }
     if(int(rows.size())>visible_){

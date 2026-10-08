@@ -7,5 +7,7 @@ call "%~dp0core\tools\test.bat"
 if errorlevel 1 exit /b 1
 call "%~dp0museum\tools\test.bat"
 if errorlevel 1 exit /b 1
-call "%~dp0farm-radar\tools\test.bat"
+call "%~dp0mob-radar\tools\test.bat"
+if errorlevel 1 exit /b 1
+call "%~dp0museum-radar\tools\test.bat"
 exit /b %ERRORLEVEL%

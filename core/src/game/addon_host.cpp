@@ -121,7 +121,7 @@ extern "C" const TqmAddonApiV1* TQM_CALL TQM_GetAddonApi(uint32_t version){
 }
 
 #pragma comment(linker,"/EXPORT:TQT_GetCoreApi=_TQT_GetCoreApi")
-extern "C" const TqtCoreApiV1* TQM_CALL TQT_GetCoreApi(uint32_t version){
-    static const TqtCoreApiV1 core={sizeof(TqtCoreApiV1),TQT_CORE_API_VERSION,&integration::api,integration::coreReady,integration::coreDataDirectory,integration::coreSourceState,integration::coreSourceText,integration::coreKeyboardBusy};
+extern "C" const TqtCoreApiV2* TQM_CALL TQT_GetCoreApi(uint32_t version){
+    static const TqtCoreApiV2 core={sizeof(TqtCoreApiV2),TQT_CORE_API_VERSION,&integration::api,integration::coreReady,integration::coreDataDirectory,integration::coreSourceState,integration::coreSourceText,integration::coreKeyboardBusy,integration::coreSetCollection};
     return version==TQT_CORE_API_VERSION?&core:nullptr;
 }

@@ -10,6 +10,7 @@
 #include <cwchar>
 #include <cmath>
 #include <mutex>
+#include <set>
 #include <vector>
 #include <algorithm>
 #include <stdexcept>
@@ -45,6 +46,7 @@ std::mutex stateMutex;
 HANDLE sourceEvent=nullptr;
 gen::LootContext wanted,activeContext,resultContext;
 bool pending=false,contextValid=false,resultReady=false,failed=false;
+std::set<std::string> collectedRecords;bool collectionKnown=false;
 std::string sourceText;
 std::map<std::string,std::string> resultTargets,frameTargets;
 unsigned revision=0,frameRevision=0;int frameDifficulty=-1;bool frameReady=false;
@@ -81,21 +83,21 @@ DWORD WINAPI calculateSources(void*){
         if(!model.load(std::string(dataDirectory)+"\\loot-model.bin",&error)){
             std::lock_guard<std::mutex> lock(stateMutex);failed=true;logW("source model: %s",error.c_str());return 1;
         }
-        struct Cache {gen::LootContext context;std::string text;std::map<std::string,std::string> targets;};
+        struct Cache {gen::LootContext context;std::string text;std::map<std::string,std::string> targets;std::set<std::string> collected;};
         std::vector<Cache> cache;
         for(;;){
             if(WaitForSingleObject(sourceEvent,INFINITE)!=WAIT_OBJECT_0)return 1;
-            gen::LootContext context;
-            {std::lock_guard<std::mutex> lock(stateMutex);if(!pending)continue;context=wanted;pending=false;}
+            gen::LootContext context;std::set<std::string> collected;
+            {std::lock_guard<std::mutex> lock(stateMutex);if(!pending)continue;context=wanted;collected=collectedRecords;pending=false;}
             std::string output;std::map<std::string,std::string> targets;
-            auto found=std::find_if(cache.begin(),cache.end(),[&](const auto& c){return c.context==context;});
+            auto found=std::find_if(cache.begin(),cache.end(),[&](const auto& c){return c.context==context&&c.collected==collected;});
             if(found!=cache.end()){output=found->text;targets=found->targets;}
             else {
-                if(!model.calculate(context,output,&error,&targets))throw std::runtime_error(error);
-                if(cache.size()>=4)cache.erase(cache.begin());cache.push_back({context,output,targets});
+                if(!model.calculate(context,output,&error,&targets,&collected))throw std::runtime_error(error);
+                if(cache.size()>=4)cache.erase(cache.begin());cache.push_back({context,output,targets,collected});
             }
             {std::lock_guard<std::mutex> lock(stateMutex);
-                if(contextValid&&context==activeContext){sourceText=std::move(output);resultTargets=std::move(targets);
+                if(contextValid&&context==activeContext&&collected==collectedRecords){sourceText=std::move(output);resultTargets=std::move(targets);
                     resultContext=context;resultReady=true;++revision;}}
             logI("sources calculated: level %d, party %d, difficulty %d",context.averageLevel,context.players,context.difficulty);
         }
@@ -259,6 +261,25 @@ int32_t TQM_CALL coreSourceText(uint32_t wantedRevision,char* out,uint32_t capac
     if(capacity<*bytes)return TQM_COPY_CAPACITY;std::memcpy(out,sourceText.c_str(),*bytes);return TQM_COPY_OK;
 }
 void TQM_CALL coreKeyboardBusy(uint32_t value){InterlockedExchange(&busy,value?1:0);}
+int32_t TQM_CALL coreSetCollection(const TqtCollectedItemV1* items,uint32_t count,uint32_t known){
+    if(count>4096||(!items&&count)||(!known&&count))return 0;
+    std::set<std::string> next;
+    try {
+        for(uint32_t i=0;i<count;++i){TqtCollectedItemV1 item={};
+            if(!safeRead(items+i,&item,sizeof(item))||!std::memchr(item.record,0,sizeof(item.record)))return 0;
+            std::string record=item.record;
+            for(char& ch:record){if(ch=='\\')ch='/';if(ch>='A'&&ch<='Z')ch+=32;}
+            if(record.compare(0,8,"records/")||record.size()<12||record.compare(record.size()-4,4,".dbr"))return 0;
+            next.insert(std::move(record));
+        }
+        std::lock_guard<std::mutex> lock(stateMutex);
+        if(collectionKnown==(known!=0)&&collectedRecords==next)return 1;
+        collectionKnown=known!=0;collectedRecords.swap(next);
+        resultTargets.clear();resultReady=false;++revision;
+        if(contextValid){wanted=activeContext;pending=true;if(sourceEvent)SetEvent(sourceEvent);}
+        logI("radar collection: %zu collected records, known=%d",collectedRecords.size(),collectionKnown?1:0);return 1;
+    }catch(...){return 0;}
+}
 #ifdef TQT_CORE_TEST
 void coreTestPublish(const gen::LootContext& context,const std::string& value,const std::map<std::string,std::string>& targets){
     std::lock_guard<std::mutex> lock(stateMutex);

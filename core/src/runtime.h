@@ -18,4 +18,5 @@ int32_t TQM_CALL coreDataDirectory(char*,uint32_t);
 int32_t TQM_CALL coreSourceState(TqtSourceStateV1*);
 int32_t TQM_CALL coreSourceText(uint32_t,char*,uint32_t,uint32_t*);
 void TQM_CALL coreKeyboardBusy(uint32_t);
+int32_t TQM_CALL coreSetCollection(const TqtCollectedItemV1*,uint32_t,uint32_t);
 }

@@ -4,7 +4,7 @@
 #include <cstring>
 #include <cstdio>
 namespace integration {
-inline const TqtCoreApiV1* coreApi(){
+inline const TqtCoreApiV2* coreApi(){
     HMODULE module=GetModuleHandleW(L"TitanQuestCore.asi");if(!module)return nullptr;
     auto get=reinterpret_cast<TqtGetCoreApi>(GetProcAddress(module,"TQT_GetCoreApi"));
     const auto* api=get?get(TQT_CORE_API_VERSION):nullptr;

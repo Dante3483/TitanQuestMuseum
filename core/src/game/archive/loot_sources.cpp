@@ -412,14 +412,17 @@ bool LootSourceModel::load(const std::string& path,std::string* error){
     if(!r.ok||r.pos!=data.size()||items.empty())return fail();m_impl->solver=std::move(s);return true;
 }
 bool LootSourceModel::calculate(const LootContext& context,std::string& output,std::string* error,
-                               std::map<std::string,std::string>* farmTargets){
+                               std::map<std::string,std::string>* farmTargets,const std::set<std::string>* collected){
     if(farmTargets)farmTargets->clear();
     output.clear();if(!m_impl->solver||!context.valid()){if(error)*error="unavailable loot context";return false;}
     Solver& s=*m_impl->solver;s.context=context;runSolver(s,true);formatSources(s,output);
     if(farmTargets){
         std::set<std::string> names;
-        for(const auto& rows:s.best)for(const auto& row:rows)
-            if(!rows.empty() && integration::utSourceCoBest(row.p,rows.front().p))names.insert(row.name);
+        for(size_t i=0;i<s.best.size();++i){
+            if(collected&&collected->count(s.items[i].record))continue;
+            const auto& rows=s.best[i];for(const auto& row:rows)
+                if(integration::utSourceCoBest(row.p,rows.front().p))names.insert(row.name);
+        }
         for(const auto& entry:s.nodes){const auto& n=entry.second;
             if(n.kind!="Monster" || excludedSource(n.key) || !s.referenced.count(n.key) ||
                !(int(number(n.r,"sourceDifficultyMask",0,7))&(1<<context.difficulty)))continue;

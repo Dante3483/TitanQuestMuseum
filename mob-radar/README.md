@@ -1,7 +1,7 @@
-# TitanQuestFarmRadar
+# TitanQuestMobRadar
 
 An optional x86 ASI add-on for TitanQuestCore on Titan Quest Anniversary Edition
-2.10. This component lives in the Titan Quest Toolkit repository under `farm-radar/`.
+2.10. This component lives in the Titan Quest Toolkit repository under `mob-radar/`.
 
 The compact panel stays in the bottom-left corner while enabled and a character
 is loaded. It shows only the localized names of nearby living creatures that
@@ -15,11 +15,11 @@ panel with the mouse wheel if there are more than eight unique names.
 1. Close the game.
 2. Install `scripts/TitanQuestCore.asi` from `../core/dist` with the matching build that
    exports add-on API v1.
-3. Copy `dist/TitanQuestFarmRadar.asi` into the same `scripts` directory.
+3. Copy `dist/TitanQuestMobRadar.asi` into the same `scripts` directory.
 4. Keep the existing Core database, loot model, catalogues, collections and
    localization files. Nothing needs deleting or moving. Use the existing ASI loader.
 
-Core alone now draws no radar. Removing only `TitanQuestFarmRadar.asi` with the
+Core alone now draws no radar. Removing only `TitanQuestMobRadar.asi` with the
 game closed removes the radar and leaves Core working. Neither DLL should be
 hot-loaded/unloaded into a running game. The older integrated radar binary must
 be replaced to avoid an old panel still appearing alongside this add-on.
@@ -27,7 +27,7 @@ be replaced to avoid an old panel still appearing alongside this add-on.
 ## Settings
 
 The add-on creates its own folder beside its ASI:
-`scripts/TitanQuestFarmRadar/`. Its log and INI live there, separately from Core.
+`scripts/TitanQuestMobRadar/`. Its log and INI live there, separately from Core.
 
 ```ini
 [radar]
@@ -57,9 +57,14 @@ off-screen creatures, accounts for region offsets and excludes other worlds.
 Unloaded creatures cannot be detected. Engine-owned list buffers are freed
 through the engine's CRT. Actor pointers are not retained for later dereferencing.
 Core's same-name source variant grouping and exact co-best tolerance are retained.
+Non-character class tables are rejected before fetching record names. Only class
+tables are cached; actor pointers are never kept across scans. Scan diagnostics
+include `time-ms` and the preceding interval's `peak-ms`. The old detailed
+arachnid diagnostics were removed. Panel label measurements are cached until
+the displayed name, font or available width changes.
 
 If Core is missing or its API is incompatible, this add-on stays inactive and
-logs the dependency error. Inspect `TitanQuestFarmRadar.log` for registration,
+logs the dependency error. Inspect `TitanQuestMobRadar.log` for registration,
 source snapshot revisions, periodic scan diagnostics and any scan fault.
 The log supports reading while the game is running. Callback faults are also reported
 in the Core log with the add-on registration token.
@@ -83,3 +88,14 @@ teleport/menu transitions, ordinary monsters/bosses, multiple resolutions and
 FPS in a crowded area. This is not a guarantee that the modeled drop will occur.
 
 The extracted panel/rules/helpers retain the MIT license from TitanQuestCore.
+
+## Optional MuseumRadar
+
+MobRadar does not read Museum files and does not require Museum. To hide creatures
+whose every best drop is already collected, install Museum and the separate
+`TitanQuestMuseumRadar.asi` add-on. It supplies collection snapshots through
+MobRadar's versioned C API (`../core/include/tqt_radar.h`). Core API v2 is required.
+
+On first launch MobRadar copies the old `TitanQuestFarmRadar.ini` into its new
+settings folder if no new INI exists. Remove the old `TitanQuestFarmRadar.asi`
+from the loader directory with the game closed to avoid duplicate panels.
