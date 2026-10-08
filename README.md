@@ -61,3 +61,16 @@ drop is already collected. MuseumRadar validates Museum's JSON journal and reads
 its contents only when changed; it never writes collection data. MobRadar alone
 shows all best sources. `museum-radar/tools/test.bat` checks the reader and cache.
 This uses Core API v2 and MobRadar API v1; update matching Toolkit builds together.
+
+## Logging
+
+Normal logs keep startup/dependency status, errors, failures and important state
+changes. MobRadar does not log regular scans, creature names or positions; scans
+lasting at least 8 ms produce at most one warning per minute. Core repeated frame
+faults are limited to one warning per 30 seconds. MuseumRadar reports collection
+availability changes rather than every collection refresh.
+
+Museum's normal `log_level=info` retains collection deposit/take/recovery records
+for diagnosing lost items. UI geometry, scrolling, rebuilding, opening windows
+and other technical details require explicitly selecting `debug` or `trace`.
+Keep `log_flush_each_line=0` for normal play.

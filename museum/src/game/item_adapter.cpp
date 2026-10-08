@@ -214,7 +214,7 @@ bool buildSack() {
     g_cellW = cw;
     g_cellH = ch;
     g_sack = (TqSack*)mem;
-    logI("view: mod sack built at %p (16x15 cells of %ux%u px, the real Transfer sack's cell)",
+    logD("view: mod sack built at %p (16x15 cells of %ux%u px, the real Transfer sack's cell)",
          mem, cw, ch);
     return true;
 }
@@ -262,7 +262,7 @@ TqSack* protoSack() {
     if (g_sack && g_recheckCell) {
         g_recheckCell = false;
         if (!cellStillMatches(g_sack)) {
-            logI("view: the kept mod sack's cell no longer matches the real Transfer sack - retired");
+            logD("view: the kept mod sack's cell no longer matches the real Transfer sack - retired");
             retireSack();
             if (g_sackFull) return nullptr;
         }
@@ -354,7 +354,7 @@ int protoBuild(const UtProtoPlace* places, int n, int* failed) {
     if (g_liveCount == 0) {   // an empty sack is placed on its LIVE cell (the UI scale's)
         unsigned lw = 0, lh = 0;
         if (liveCell(s, &lw, &lh) && (lw != g_cellW || lh != g_cellH)) {
-            logI("view: the mod sack's cell is now %ux%u px (was %ux%u: the UI scale changed - "
+            logD("view: the mod sack's cell is now %ux%u px (was %ux%u: the UI scale changed - "
                  "InventorySack::OnUIScaleChange); the prototypes are placed on it",
                  lw, lh, g_cellW, g_cellH);
             g_cellW = lw;
@@ -719,7 +719,7 @@ unsigned protoStackCount(const void* item) {
         static bool said = false;
         if (!said) {
             said = true;
-            logI("view: the stack count is not readable (item.stackSlot not decoded) - a unique counts "
+            logD("view: the stack count is not readable (item.stackSlot not decoded) - a unique counts "
                  "as one item; the deposit lines print the count as \"?\"");
         }
         return 0;

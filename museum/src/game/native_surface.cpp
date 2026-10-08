@@ -195,7 +195,7 @@ void ensureFont() {
     utGuardLeave();
     g_font = f;
     if (f) {
-        logI("panel: font \"%s\" loaded by name (%p)", g_cfg.fontName, f);
+        logD("panel: font \"%s\" loaded by name (%p)", g_cfg.fontName, f);
     } else {
         logW("panel: font \"%s\" could not be loaded - the pad draws without captions",
              g_cfg.fontName);
@@ -275,7 +275,7 @@ void drawPlateFrames(TqCanvas* c) {
     }
     if (!g_frameFallbackSaid && n > 0) {
         g_frameFallbackSaid = true;
-        logI("panel: slot plates as thin frames from the Present detour (the page-draw PRE-detour "
+        logD("panel: slot plates as thin frames from the Present detour (the page-draw PRE-detour "
              "did not draw them: %s)", g_cfg.slotPlates == 2 ? "slot_plates=2 in uniquetab.ini"
              : g_tq.sigPageDrawRva ? "no call on this page with the engine canvas"
                                    : "exe.transferPageDraw not confirmed");
@@ -589,7 +589,7 @@ void frameCheckGeometry(const PlateGeometry& g) {
     g_drawStable = 0;
     g_frameVerdict = 0;
     utFrameTrackReset(&g_track);
-    logI("panel: the canvas or UI scale changed - the caravan frame is measured again (the Transfer "
+    logD("panel: the canvas or UI scale changed - the caravan frame is measured again (the Transfer "
          "page draw, or the next mouse move over the Transfer grid); no pad until then");
 }
 
@@ -657,7 +657,7 @@ static void noteFrame(int src, float originX, float originY, float gridX, float 
     PlateGeometry g;
     if (!plateGeometry(&g)) return;
     if (g_frameVerdict != 0)
-        logI("panel: the grid moved from (%.1f,%.1f) to (%.1f,%.1f) - the caravan frame is derived "
+        logD("panel: the grid moved from (%.1f,%.1f) to (%.1f,%.1f) - the caravan frame is derived "
              "again (move %d of at most %d in this showing of the page)",
              g_track.gridX, g_track.gridY, gridX, gridY, g_track.moves, kUtFrameMovesMax);
     UtFrameIn in;
@@ -702,7 +702,7 @@ static void noteFrame(int src, float originX, float originY, float gridX, float 
         g_frameVerdict = 1;
         g_frameLogged = f;
         g_frameLoggedOk = true;
-        logI("panel: caravan window measured at (%.0f,%.0f) %.0fx%.0f - %s (%.1f,%.1f) minus "
+        logD("panel: caravan window measured at (%.0f,%.0f) %.0fx%.0f - %s (%.1f,%.1f) minus "
              "the Transfer page's record place (%.0f,%d) x %.3f; "
              "the grid (%.0f,%.0f) %.0fx%.0f (page pos (%.1f,%.1f)) lies inside it, the frame "
              "inside the %dx%d canvas; the records said (%.0f,%.0f) %.0fx%.0f (off by %+.0f,%+.0f)",
@@ -731,7 +731,7 @@ void panelNoteHover(float originX, float originY, float gridX, float gridY, unsi
             !utFrameMoved(gridX, gridY, g_frameGrid.x, g_frameGrid.y)) {
             if (!g_drawAgreeSaid) {
                 g_drawAgreeSaid = true;
-                logI("panel: the page mouse handler confirms the caravan frame taken from the Transfer "
+                logD("panel: the page mouse handler confirms the caravan frame taken from the Transfer "
                      "page draw (origin (%.1f,%.1f), grid (%.0f,%.0f))", originX, originY, gridX,
                      gridY);
             }
@@ -766,7 +766,7 @@ static void drawFrameStep(void* page, const void* origin, int pass) {
         g_drawStable = 0;
         if (r != g_drawWhySaid) {
             g_drawWhySaid = r;
-            logI("panel: no caravan frame from the Transfer page draw (%s, pass %d) - the pad waits "
+            logD("panel: no caravan frame from the Transfer page draw (%s, pass %d) - the pad waits "
                  "for the first mouse move over the Transfer grid", utDrawWhyText(r), pass);
         }
         return;
@@ -793,7 +793,7 @@ static void drawFrameStep(void* page, const void* origin, int pass) {
             !utFrameMoved(gx, gy, g_frameGrid.x, g_frameGrid.y)) {
             if (!g_drawAgreeSaid) {
                 g_drawAgreeSaid = true;
-                logI("panel: the Transfer page draw agrees with the page mouse handler's caravan frame "
+                logD("panel: the Transfer page draw agrees with the page mouse handler's caravan frame "
                      "(origin (%.1f,%.1f), grid (%.0f,%.0f))", px, py, gx, gy);
             }
             return;
@@ -955,7 +955,7 @@ void panelDraw() {
     }
     if (!g_geoSaid) {
         g_geoSaid = true;
-        logI("panel: caravan window (records) at (%.0f,%.0f) %.0fx%.0f on a %dx%d canvas (UI scale "
+        logD("panel: caravan window (records) at (%.0f,%.0f) %.0fx%.0f on a %dx%d canvas (UI scale "
              "%.3f, client %ldx%ld) - the pad waits for the measured frame (the Transfer page draw, "
              "else the first mouse move over the Transfer grid); nothing is drawn until then",
              g_geo.winX, g_geo.winY, g_geo.winW, g_geo.winH, g_geo.canvasW, g_geo.canvasH,
@@ -976,7 +976,7 @@ void panelDraw() {
         g_padPresentRun = 0;
     } else if (!g_padPresentSaid && ++g_padPresentRun >= 120) {   // the route line
         g_padPresentSaid = true;
-        logI("panel: the pad is drawn from the Present detour (over the engine's tooltip) - %s; the "
+        logD("panel: the pad is drawn from the Present detour (over the engine's tooltip) - %s; the "
              "Transfer page draw's POST takes it over in every frame it draws it",
              !g_tq.sigPageDrawRva      ? "exe.transferPageDraw not confirmed (no page-draw detour)"
              : g_pdStable < kPdStable ? "the page draw's per-frame call pattern is not steady yet"
@@ -1220,7 +1220,7 @@ const TqTexture* artReady(const TqTexture* t, int w, int h) {
     }
     g_art = t;
     g_artWait = nullptr;
-    logI("panel: the equipment window's slot art %s loaded by name (%p, %d x %d; the file is %d x %d)",
+    logD("panel: the equipment window's slot art %s loaded by name (%p, %d x %d; the file is %d x %d)",
          kUtSlotArtTexture, (const void*)t, w, h, kUtSlotArtTexW, kUtSlotArtTexH);
     return g_art;
 }
@@ -1311,7 +1311,7 @@ bool drawSlotArt(TqCanvas* c, const UtSlotArtBox& b, float x, float y, float w, 
 void slotArtSay(const UtSlotArtBox* art, int drawn, int n) {
     if (g_artSaid || !art || drawn <= 0) return;
     g_artSaid = true;
-    logI("panel: slot ground = the equipment window's art, %s (%d,%d) %dx%d of %s, on %d of %d "
+    logD("panel: slot ground = the equipment window's art, %s (%d,%d) %dx%d of %s, on %d of %d "
          "slots of group \"%s\" (the page draw's PRE-detour, under the items)",
          art->box, art->x, art->y, art->w, art->h, kUtSlotArtTexture, drawn, n, art->group);
 }
@@ -1541,7 +1541,7 @@ bool grayEnsureSource() {
         return false;
     }
     g_graySource = true;
-    logI("panel: gray icons - the mod's gray\\ folder is a directory source of the engine's file "
+    logD("panel: gray icons - the mod's gray\\ folder is a directory source of the engine's file "
          "system (FileSystem::AddSource, partition 1, as TQ.exe adds ./Settings/); the icons load by "
          "name (gray\\ug<hash>.tex) through GraphicsEngine::LoadTexture");
     return true;
@@ -1679,7 +1679,7 @@ void grayEnd() {
     if (g_cfg.ownedMarks != 3 || g_grayOff) return;
     if (g_grayLent > 0 && !g_graySaid) {
         g_graySaid = true;
-        logI("panel: uncollected records drawn in gray - the engine's own icon draw (TQ.exe+0x10ADE0, "
+        logD("panel: uncollected records drawn in gray - the engine's own icon draw (TQ.exe+0x10ADE0, "
              "the texture at [widget+0x%X]) given the gray copy on %d of %d uncollected prototype(s); "
              "the hovered one shows its colours, a slot without a gray copy keeps the veil",
              kUtWidgetIcon, g_grayLent, g_grayWanted);
@@ -1900,7 +1900,7 @@ void panelRectRouteEnd() {
                             "uncollected records: no tint, red or border unless hovered (0 "
                             "skipped this frame: the owned marks are not trusted yet - the grid "
                             "not measured, the journal unknown or the OWN filter on)");
-            logI("panel: items drawn slot-wide - the engine draws each prototype's background (its "
+            logD("panel: items drawn slot-wide - the engine draws each prototype's background (its "
                  "tint and rarity border) over its SLOT and its icon centred in it (TQ.exe+0x%X "
                  "detour: %d widget(s), %d put back at their footprint after the page draw); the "
                  "tint ring is off while this holds (kept as the fallback); %s",
@@ -1999,7 +1999,7 @@ void panelPageDrawPre(void* page, void* canvas, const void* origin, int pass) {
             g_pdPrevLastPass = g_pdLastPass;
             if (g_pdStable == kPdStable && !g_pdSaid) {
                 g_pdSaid = true;
-                logI("panel: the Transfer page draw runs %d time(s) a frame (first pass %d, last pass "
+                logD("panel: the Transfer page draw runs %d time(s) a frame (first pass %d, last pass "
                      "%d) - the slot plates go before the first call, the veils after the last",
                      g_pdCalls, g_pdFirstPass, g_pdLastPass);
             }
@@ -2043,7 +2043,7 @@ void panelPageDrawPre(void* page, void* canvas, const void* origin, int pass) {
         g_platesAt = GetTickCount();
         if (!g_platesSaid) {
             g_platesSaid = true;
-            logI("panel: slot plates drawn by the Transfer page draw's PRE-detour (TQ.exe+0x%X, pass %d, "
+            logD("panel: slot plates drawn by the Transfer page draw's PRE-detour (TQ.exe+0x%X, pass %d, "
                  "%d slots) under the items", g_tq.sigPageDrawRva, pass, n);
         }
     }
@@ -2114,7 +2114,7 @@ bool tintRefresh(const void* page) {
         !g_tq.GameGetItemBackgroundOpacity || !g_tq.EngineGetOptions || !g_tq.OptionsGetBool) {
         if (!g_tintMissSaid) {
             g_tintMissSaid = true;
-            logI("panel: the slot-wide item tint is off - an export of the inventory draw's tint is "
+            logD("panel: the slot-wide item tint is off - an export of the inventory draw's tint is "
                  "missing (the engine still tints each item's own footprint)");
         }
         return false;
@@ -2185,7 +2185,7 @@ bool tintRefresh(const void* page) {
     if (!ok) g_tintCtrl = nullptr;   // the next refresh looks the controller up again
     if (ok && !g_tintSaid) {
         g_tintSaid = true;
-        logI("panel: slot-wide Museum rarity tint ON - independent of player requirements "
+        logD("panel: slot-wide Museum rarity tint ON - independent of player requirements "
              "(Item::GetActualItemClassification, "
              "GameEngine::GetItemColor / GetItemBackgroundOpacity; inset %.0f px): %d red, %d by "
              "classification, %d shade of %d",
@@ -2264,7 +2264,7 @@ void panelPageDrawPost(void* page, void* canvas, int pass) {
     g_padByPage = true;
     if (!g_padPageSaid) {
         g_padPageSaid = true;
-        logI("panel: the pad is drawn after the Transfer page draw (TQ.exe+0x%X POST, pass %d, call %d "
+        logD("panel: the pad is drawn after the Transfer page draw (TQ.exe+0x%X POST, pass %d, call %d "
              "of the frame, view %s): the engine's item tooltip goes over it; the Present detour draws "
              "it only in a frame where this did not", g_tq.sigPageDrawRva, pass, g_pdCalls,
              viewOn() ? "ON" : "OFF");
@@ -2293,7 +2293,7 @@ void pageDrawVeils(TqCanvas* c, int pass) {
     g_veilsByPage = true;
     if (!g_veilsPageSaid && markStyle) {
         g_veilsPageSaid = true;
-        logI("panel: the owned veils are drawn after the Transfer page draw (pass %d, call %d of the "
+        logD("panel: the owned veils are drawn after the Transfer page draw (pass %d, call %d of the "
              "frame): over the items, under the tooltip", pass, g_pdCalls);
     }
 }

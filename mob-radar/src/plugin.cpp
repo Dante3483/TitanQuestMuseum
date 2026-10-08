@@ -63,7 +63,6 @@ bool refreshTargets(const TqmFrameV1* frame){
         next.emplace(row.record,row.name);
     }
     targets.swap(next);sourcesReady=true;appliedRevision=sourceRevision;
-    logI("Core source snapshot: revision %u, difficulty %d, %u creature records",sourceRevision,frame->difficulty,count);
     return true;
 }
 class HostRenderer final:public museum::ui::Renderer {

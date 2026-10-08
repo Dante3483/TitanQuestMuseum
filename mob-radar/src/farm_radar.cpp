@@ -118,8 +118,6 @@ std::vector<museum::RadarEntry> scan(const void* player,const museum::RadarPoint
     LARGE_INTEGER started={},finished={},frequency={};QueryPerformanceCounter(&started);
     TqPtrVector list={};std::map<std::string,double> nearest;
     bool ok=listObjects(&list);
-    size_t matched=0,alive=0,inRange=0;double closest=1e30;std::string closestRecord;
-    size_t creatures=0;
     const uintptr_t a=reinterpret_cast<uintptr_t>(list.first),b=reinterpret_cast<uintptr_t>(list.last),
                     c=reinterpret_cast<uintptr_t>(list.end);
     ok=ok && b>=a && c>=b && (b-a)%sizeof(void*)==0 && (b-a)/sizeof(void*)<=4000000;
@@ -130,16 +128,12 @@ std::vector<museum::RadarEntry> scan(const void* player,const museum::RadarPoint
             if(!safeRead(list.first+i,&obj,sizeof(obj))){ok=false;break;}
             if(!obj || obj==player)continue;
             if(!creatureClass(obj))continue;
-            ++creatures;
             if(!recordName(obj,record)){ok=false;break;}
             const auto found=targets.find(record);if(found==targets.end())continue;
-            ++matched;
             bool live=false;museum::RadarPoint p;
             if(!creaturePoint(obj,&live,&p)){ok=false;break;}
             if(live){
-                ++alive;const double distance=museum::radarDistanceSquared(origin,p);
-                if(distance>=0&&std::isfinite(distance)&&distance<closest){closest=distance;closestRecord=record;}
-                if(distance>=0&&distance<=double(g_cfg.farmRadarRadius)*g_cfg.farmRadarRadius)++inRange;
+                const double distance=museum::radarDistanceSquared(origin,p);
                 museum::radarRemember(nearest,found->second,distance,g_cfg.farmRadarRadius);
             }
         }
@@ -148,14 +142,11 @@ std::vector<museum::RadarEntry> scan(const void* player,const museum::RadarPoint
     if(!ok){farmRadarFault("live object scan failed");return {};}
     QueryPerformanceCounter(&finished);QueryPerformanceFrequency(&frequency);
     const double elapsed=frequency.QuadPart?1000.0*double(finished.QuadPart-started.QuadPart)/double(frequency.QuadPart):0;
-    static double peakMs=0;peakMs=(std::max)(peakMs,elapsed);
-    static DWORD lastReport=0;const DWORD now=GetTickCount();
-    if(!lastReport || now-lastReport>=10000){
-        lastReport=now;
-        logI("scan: objects=%zu creature-candidates=%zu best-record matches=%zu alive-positioned=%zu within-radius=%zu names=%zu time-ms=%.3f peak-ms=%.3f player=(%.2f,%.2f,%.2f) world=%d",
-             (b-a)/sizeof(void*),creatures,matched,alive,inRange,nearest.size(),elapsed,peakMs,origin.x,origin.y,origin.z,origin.world);
-        peakMs=0;
-        if(!closestRecord.empty())logI("scan: closest best creature %.2f units: %s",std::sqrt(closest),closestRecord.c_str());
+    static DWORD lastSlowReport=0;static bool slowReported=false;
+    const DWORD now=GetTickCount();
+    if(elapsed>=8.0&&(!slowReported||now-lastSlowReport>=60000)){
+        lastSlowReport=now;slowReported=true;
+        logW("slow scan: %.2f ms, %zu loaded objects (warnings limited to once per minute)",elapsed,(b-a)/sizeof(void*));
     }
     return museum::radarSorted(nearest);
 }

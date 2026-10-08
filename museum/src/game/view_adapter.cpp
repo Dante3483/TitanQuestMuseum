@@ -178,7 +178,7 @@ bool mpNote() {
     const int prev = g_vs.mpUnknown ? 2 : (g_vs.mp ? 1 : 0);
     if (arg != prev) {
         if (arg == 1) {
-            logI("view: multiplayer session (mp=%s, was mp=%s) - the view works; deposits and takes "
+            logD("view: multiplayer session (mp=%s, was mp=%s) - the view works; deposits and takes "
                  "%s (mp_collect=%d)",
                  shape, was,
                  g_cfg.mpCollect ? "work as in single player, for this player only" : "are refused",
@@ -267,7 +267,7 @@ bool buildPage(bool navigation = false) {
         logW("view: page %s rows %s / %d: %d of %d prototypes placed, %d refused by the engine",
              label, span, rows, placed, n, failed);
     } else if (shift == kUtShiftDone) {
-        logI("view: page %s rows %s / %d: %d prototypes%s - moved %d, created %d, destroyed %d in "
+        logD("view: page %s rows %s / %d: %d prototypes%s - moved %d, created %d, destroyed %d in "
              "%.1f ms (%d unchanged%s)",
              label, span, rows, placed, own, sc.moved, sc.created, sc.destroyed, ms, sc.stayed,
              input);
@@ -275,7 +275,7 @@ bool buildPage(bool navigation = false) {
         // the create's share, so a user log says whether creation dominates a group switch
         const double createMs =
             qf.QuadPart ? (double)(t1.QuadPart - tc.QuadPart) * 1000.0 / (double)qf.QuadPart : 0.0;
-        logI("view: page %s rows %s / %d: %d prototypes%s - rebuilt in %.1f ms (%s%d destroyed + %d "
+        logD("view: page %s rows %s / %d: %d prototypes%s - rebuilt in %.1f ms (%s%d destroyed + %d "
              "created, the create %.1f ms%s)",
              label, span, rows, placed, own, ms, sameGroup ? "whole, " : "", destroyed, placed,
              createMs, input);
@@ -348,7 +348,7 @@ void viewInit(bool hooksOk) {
     g_vs.bindingsOk = true;
     InterlockedExchange(&g_available, 1);
     _snprintf_s(g_unavailable, sizeof(g_unavailable), _TRUNCATE, "%s", "");
-    logI("view: available - member at sub-window+0x%X+0x%X, right-click / held pick-up / left-click "
+    logD("view: available - member at sub-window+0x%X+0x%X, right-click / held pick-up / left-click "
          "refused at TQ.exe+0x%X / +0x%X / +0x%X, %d groups on %d pages",
          g_tq.pageUiOff, g_tq.pageSackOff,
          (unsigned)((const unsigned char*)g_tq.retRightClick - (const unsigned char*)g_tq.exe),
@@ -356,7 +356,7 @@ void viewInit(bool hooksOk) {
          (unsigned)((const unsigned char*)g_tq.retLeftClick - (const unsigned char*)g_tq.exe),
          liveGroupCount(), livePagesTotal());
     // (the READY block): what mp_collect does now (GD's rule).
-    logI("view: multiplayer - mp_collect=%d: in a hosted or joined game %s; a change of the session "
+    logD("view: multiplayer - mp_collect=%d: in a hosted or joined game %s; a change of the session "
          "state turns the view off once, an unknown state refuses the view and every move",
          g_cfg.mpCollect ? 1 : 0,
          g_cfg.mpCollect
@@ -384,7 +384,7 @@ void viewForceOff(const char* reason, bool worldGone) {
         return;
     }
     if (wasOn || rp > 0 || n > 0) {
-        logI("view: OFF (%s) - member %s, %d prototype(s) destroyed", reason ? reason : "?",
+        logD("view: OFF (%s) - member %s, %d prototype(s) destroyed", reason ? reason : "?",
              rp > 0    ? "re-pointed to the real Transfer sack"
              : rp == -2 ? "not written (the page object is gone)"
                         : "already the real sack",
@@ -466,7 +466,7 @@ void viewTick() {
                             InterlockedExchange(&g_on, 1);
                             const bool movesMp =
                                 utMpMovesAllowed(true, g_vs.mp, g_cfg.mpCollect != 0);
-                            logI("view: ON - the Transfer page shows the collection (%s)%s",
+                            logD("view: ON - the Transfer page shows the collection (%s)%s",
                                  !storeTableOwns()
                                      ? "display only: the journal cannot take moves"
                                      : !movesMp
@@ -503,7 +503,7 @@ void viewTick() {
         unsigned pw = 0, ph = 0, lw = 0, lh = 0;
         protoPlacedCell(&pw, &ph);
         protoCellSize(&lw, &lh);
-        logI("view: the mod sack's cell went from %ux%u to %ux%u px (the UI scale changed) - the "
+        logD("view: the mod sack's cell went from %ux%u to %ux%u px (the UI scale changed) - the "
              "window is rebuilt on the new cell", pw, ph, lw, lh);
     }
     if ((dirty || cellMoved) && g_vs.on) {
@@ -519,7 +519,7 @@ void viewTick() {
         g_firstFrameSaid = true;
         const LONG why = InterlockedCompareExchange(&g_firstFrameWhy, 0, 0);
         if (InterlockedCompareExchange(&g_firstFrame, 0, 0) == 1) {
-            logI("view: the page mouse handler's frame VERIFIED at its first call on the collection "
+            logD("view: the page mouse handler's frame VERIFIED at its first call on the collection "
                  "- hovers are proven, prototype tooltips work, clicks stay refused");
         } else {
             logW("view: the page mouse handler's frame did NOT verify at its first call (%s) - "
@@ -603,7 +603,7 @@ void viewAccessorLeave(void* subWindow) {
         static bool said = false;
         if (!said) {
             said = true;
-            logI("view: live check - the Transfer page caches the real sack (GameEngine+0x%X) at "
+            logD("view: live check - the Transfer page caches the real sack (GameEngine+0x%X) at "
                  "sub-window+0x%X, kind %d",
                  g_tq.transferOff, g_tq.pageUiOff + g_tq.pageSackOff, kind);
         }
@@ -1546,7 +1546,7 @@ unsigned viewTakeRightClick(const TqSack* s, unsigned id, unsigned rawId, float 
     }
     if (!g_rightRuleSaid) {
         g_rightRuleSaid = true;
-        logI("view: right-click takes check the inventory's room UP FRONT (InventorySack::"
+        logD("view: right-click takes check the inventory's room UP FRONT (InventorySack::"
              "IsSpaceForItem on the sacks PlayerInventoryCtrl::AddItem tries) - a full inventory "
              "refuses the take and the item stays in the collection (the engine itself would drop "
              "it on the ground: Player::GiveItemToCharacter -> SendDropItemRandom); the MOUSE "

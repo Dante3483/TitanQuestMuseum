@@ -41,8 +41,8 @@ bool nativeTextAvailable() {
         auto proc=GetProcAddress(GetModuleHandleW(L"Engine.dll"),rectTextName);
         if (proc && alignmentVerified(reinterpret_cast<const unsigned char*>(proc)))
             rectText=reinterpret_cast<RectText>(proc);
-        integration::logI("museum: native rectangle text alignment %s (0 left, 1 right, 2 center)",
-                         rectText ? "verified" : "unavailable; captions disabled");
+        if(rectText)integration::logD("museum: native rectangle text alignment verified");
+        else integration::logW("museum: native rectangle text alignment unavailable; captions disabled");
     }
     return rectText != nullptr;
 }

@@ -262,7 +262,7 @@ bool checkMapOnModSack() {
     if ((ok ? 1 : 0) != s_last) {
         s_last = ok ? 1 : 0;
         if (ok) {
-            logI("owned: the id-map walk reads the mod sack's %d prototypes exactly", pc);
+            logD("owned: the id-map walk reads the mod sack's %d prototypes exactly", pc);
         } else {
             logW("owned: the id-map walk does NOT read the mod sack right (%d keys for %d "
                  "prototypes) - owned marks off", r, pc);
@@ -405,7 +405,7 @@ void refresh() {
              walked ? 1 : 0, o.protoSeen, pn, o.protoOk, o.bad);
     }
     g_known = walked && g_namesOk && g_idCount < kIdCap && g_ownedCount < kOwnedCap;
-    logI("owned: %s - ids stash %d, transfer %d, vault %d, inventory %d%s; %d objects walked, %d "
+    logD("owned: %s - ids stash %d, transfer %d, vault %d, inventory %d%s; %d objects walked, %d "
          "named, %d distinct records; names checked on %d prototypes",
          g_known ? "known" : "UNKNOWN", per[0], per[1], per[2], inv,
          inv < 0 ? " (not available)" : "", o.objects, o.named, g_ownedCount, o.protoOk);
@@ -429,7 +429,7 @@ void refreshAll(bool recount = true) {
 void ownedOnViewOn() {
     refreshAll();
     if (journalSetKnown()) {
-        logI("owned: group %s - %d / %d collected (journal rows), %u row(s) in the set", liveGroupLabel(liveShownGroup()),
+        logD("owned: group %s - %d / %d collected (journal rows), %u row(s) in the set", liveGroupLabel(liveShownGroup()),
              g_groupOwned, g_groupTotal, journalCollectedTotal());
     }
 }
@@ -541,7 +541,7 @@ void gridFeedFromFrame(const PlateGeometry& g) {
         if (again)
             logD("%s", line);
         else
-            logI("%s", line);
+            logD("%s", line);
     } else if (r == kUtGridRefusedOrigin) {
         g_gridVerdict = -1;
         logW("owned: grid check FAILED (the proven hover's origin (%.1f,%.1f) is not the measured "
@@ -573,7 +573,7 @@ void ownedNoteHover(float gridX, float gridY, float originX, float originY, floa
         // a fed grid is compared as FED (its origin may have adopted a hover's)
         const float ax = g_grid.fed ? g_grid.fedX : g_gridX, ay = g_grid.fed ? g_grid.fedY : g_gridY;
         if (panelFrameGrid(&fg) && utFrameMoved(fg.x, fg.y, ax, ay)) {
-            logI("owned: the measured caravan frame's grid (%.1f,%.1f) is not the accepted grid "
+            logD("owned: the measured caravan frame's grid (%.1f,%.1f) is not the accepted grid "
                  "origin (%.1f,%.1f) - the grid check runs again",
                  fg.x, fg.y, g_gridX, g_gridY);
             gridForget();
@@ -626,7 +626,7 @@ void ownedNoteHover(float gridX, float gridY, float originX, float originY, floa
     if (r == kUtGridCrossAdopted) {   // within the frame tolerance - follow it
         g_gridX = g_grid.gridX;
         g_gridY = g_grid.gridY;
-        logI("owned: grid - a proven hover's origin (%.2f,%.2f) is %.2f x %.2f px off the fed grid "
+        logD("owned: grid - a proven hover's origin (%.2f,%.2f) is %.2f x %.2f px off the fed grid "
              "(%.2f,%.2f), within the caravan frame's tolerance (%.1f px): the grid takes the "
              "hover's origin (prototype %u at cell (%d,%d)); waiting for another prototype",
              gridX, gridY, gridX - g_grid.fedX, gridY - g_grid.fedY, g_grid.fedX, g_grid.fedY,
@@ -635,7 +635,7 @@ void ownedNoteHover(float gridX, float gridY, float originX, float originY, floa
         logD("owned: grid - a proven hover agrees with the fed grid (%.1f,%.1f): prototype %u at "
              "cell (%d,%d); waiting for another prototype", gridX, gridY, id, cx, cy);
     } else if (r == kUtGridConfirmed) {
-        logI("owned: the proven hovers confirm the fed grid (%.1f,%.1f): prototype %u at cell "
+        logD("owned: the proven hovers confirm the fed grid (%.1f,%.1f): prototype %u at cell "
              "(%d,%d), prototype %u at cell (%d,%d); the cursor matched %d of %d hovers",
              g_gridX, g_gridY, g_grid.fedFirstId, g_grid.fedFirstCol, g_grid.fedFirstRow, id, cx,
              cy, g_grid.cursorAgree, g_grid.cursorRead);
@@ -654,7 +654,7 @@ void ownedNoteHover(float gridX, float gridY, float originX, float originY, floa
                  g_grid.cursorAgree, g_grid.cursorRead, g_grid.cursorLast);
         } else if (!g_gridWaitLongSaid && g_grid.waits >= kUtGridWaitSay) {
             g_gridWaitLongSaid = true;
-            logI("owned: grid (%.1f,%.1f) %.0fx%.0f leaves %s (%.0f,%.0f) "
+            logD("owned: grid (%.1f,%.1f) %.0fx%.0f leaves %s (%.0f,%.0f) "
                  "%.0fx%.0f and %d hovers on other prototypes brought no cursor proof yet (the "
                  "cursor matched %d of %d hovers, the matches %.0fx%.0f px apart, last %.1f px) - "
                  "no owned marks until two hovers %d cells apart match the cursor; still waiting",
@@ -668,7 +668,7 @@ void ownedNoteHover(float gridX, float gridY, float originX, float originY, floa
         g_gridY = g_grid.gridY;
         g_cw = g_grid.cw;
         g_ch = g_grid.ch;
-        logI("owned: grid at (%.1f,%.1f), cell %ux%u, %.0fx%.0f - page pos (%.1f,%.1f) + parent "
+        logD("owned: grid at (%.1f,%.1f), cell %ux%u, %.0fx%.0f - page pos (%.1f,%.1f) + parent "
              "origin (%.1f,%.1f); two proven hovers agree (prototype %u at cell (%d,%d), prototype "
              "%u at cell (%d,%d)); inside the %dx%d canvas; %s (%.0f,%.0f) "
              "%.0fx%.0f: %s; the cursor matched %d of %d hovers, the matches %.0fx%.0f px apart "
@@ -718,7 +718,7 @@ int ownedMarksBegin(const PlateGeometry& g, bool cursorOk, float cx, float cy) {
     if ((g_gridVerdict != 0 || g_grid.candSet) &&
         (g.canvasW != g_geoW || g.canvasH != g_geoH || g.scale != g_geoScale)) {
         gridForget();   // a new window geometry: measure again on the next hovers
-        logI("owned: the canvas or UI scale changed - the grid is measured again");
+        logD("owned: the canvas or UI scale changed - the grid is measured again");
     }
     if (g_gridVerdict == 1 && g_grid.fed) {   // the fed grid follows the measured frame
         UtRectF fg = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -729,7 +729,7 @@ int ownedMarksBegin(const PlateGeometry& g, bool cursorOk, float cx, float cy) {
                  "grid (%.1f,%.1f) is dropped and fed again", g_gridX, g_gridY);
             gridForget();
         } else if (utFrameMoved(fg.x, fg.y, g_grid.fedX, g_grid.fedY)) {
-            logI("owned: the measured caravan frame's grid moved to (%.1f,%.1f) - the fed grid "
+            logD("owned: the measured caravan frame's grid moved to (%.1f,%.1f) - the fed grid "
                  "(%.1f,%.1f) is dropped and fed again", fg.x, fg.y, g_gridX, g_gridY);
             gridForget();
         }

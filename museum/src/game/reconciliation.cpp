@@ -305,7 +305,7 @@ void runPass(bool caravan) {
         if (caravan) journalUnresolvedFallback("out of memory");
         return;
     }
-    logI("journal: container check at %s - %d pending row(s), %d item(s) (%d read) in the "
+    logD("journal: container check at %s - %d pending row(s), %d item(s) (%d read) in the "
          "inventory%s%s%s%s: %d dropped (found), %d settled, %d restored, %d kept",
          pass, n, o.items, o.read, o.invOk ? "" : " [NOT READ]",
          o.equipOk ? (o.bothSets ? ", the equipment (both weapon sets)" : ", the equipment")

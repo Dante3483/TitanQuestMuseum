@@ -403,7 +403,7 @@ void scanSignature(const UtBindPattern& p, unsigned* rvaOut) {
     bindingsNote(p.name, rva, ok, why);
     if (ok) {
         *rvaOut = rva;
-        logI("signature %s: 1 match at TQ.exe+0x%X (%u bytes)", p.name, rva, (unsigned)p.len);
+        logD("signature %s: 1 match at TQ.exe+0x%X (%u bytes)", p.name, rva, (unsigned)p.len);
     }
 }
 
@@ -878,7 +878,7 @@ void decodeBindings() {
     scanSignature(kUtSigItemBackground, &g_tq.sigItemBackgroundRva);   // the rect route
     decodeQuickMove();
 
-    logI("decoded: GameEngine +0x%X stash / +0x%X transfer / +0x%X relic vault, caravan mode "
+    logD("decoded: GameEngine +0x%X stash / +0x%X transfer / +0x%X relic vault, caravan mode "
          "+0x%X, cursor item id +0x%X; Item slots replica +0x%X class +0x%X type +0x%X stack "
          "+0x%X",
          g_tq.stashOff, g_tq.transferOff, g_tq.relicOff, g_tq.modeOff, g_tq.cursorIdOff,

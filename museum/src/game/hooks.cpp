@@ -120,7 +120,7 @@ LONG64 qpcFreq() {
     return g_qpcFreq;
 }
 void costFirstSay() {
-    logI("cost: the first rebuilds took %.1f / %.1f / %.1f ms, the first owned scan %.1f ms (this "
+    logD("cost: the first rebuilds took %.1f / %.1f / %.1f ms, the first owned scan %.1f ms (this "
          "session; the 5-second \"mod:\" figures follow the TRACE frames line)",
          g_costFirst.rebuild[0], g_costFirst.rebuild[1], g_costFirst.rebuild[2], g_costFirst.scan);
 }
@@ -242,7 +242,7 @@ void trySubclass(LONG64 frame) {
     }
     g_origProc = (WNDPROC)prev;
     g_hwnd = h;
-    logI("input: the game window %p (%s) is subclassed for the pad, the wheel and the hotkey",
+    logD("input: the game window %p (%s) is subclassed for the pad, the wheel and the hotkey",
          (void*)h, g_procUnicode ? "unicode" : "ansi");
 }
 
@@ -392,7 +392,7 @@ void __fastcall hk_OnPlayerInteract(TqNpcCaravan* self, void* /*edx*/, unsigned 
             InterlockedIncrement(&g_caravanOpens);
             g_openTick = GetTickCount();
             for (int i = 0; i < kCntCount; ++i) g_cntAtOpen[i] = g_cnt[i];
-            logI("caravan open: NpcCaravan::OnPlayerInteract(npc=%p, player id=%u) mode=%ld",
+            logD("caravan open: NpcCaravan::OnPlayerInteract(npc=%p, player id=%u) mode=%ld",
                  (void*)self, id, readMode(gameEngine()));
             reconOnCaravan();   // the unresolved pending rows against every container
         } else {
@@ -424,7 +424,7 @@ void __fastcall hk_CaravanGoodbye(TqGameEngine* self, void* /*edx*/) {
         const DWORD ms = was ? GetTickCount() - g_openTick : 0;
         LONG d[kCntCount];
         for (int i = 0; i < kCntCount; ++i) d[i] = g_cnt[i] - (was ? g_cntAtOpen[i] : g_cnt[i]);
-        logI("caravan close: GameEngine::CaravanGoodbye after %lu ms open - SetCaravanMode x%ld, "
+        logD("caravan close: GameEngine::CaravanGoodbye after %lu ms open - SetCaravanMode x%ld, "
              "getters stash x%ld transfer x%ld relic x%ld (const x%ld/%ld/%ld)",
              ms, d[kCntSetMode], d[kCntStash], d[kCntTransfer], d[kCntRelic], d[kCntStashC],
              d[kCntTransferC], d[kCntRelicC]);
@@ -457,7 +457,7 @@ void __fastcall hk_SetCaravanMode(TqGameEngine* self, void* /*edx*/, int mode) {
                 s_second = now;
                 s_lines = 0;
             }
-            if (++s_lines <= 10) logI("caravan mode %ld -> %d", before, mode);
+            if (++s_lines <= 10) logD("caravan mode %ld -> %d", before, mode);
         }
     } __except (EXCEPTION_EXECUTE_HANDLER) {
     }
@@ -477,7 +477,7 @@ void getterNote(int which, TqGameEngine* ge, TqSack* r) {
     TqGameEngine* global = gameEngine();
     const bool match = off && r == (TqSack*)((unsigned char*)ge + off);
     if (match && ge == global) {
-        logI("getter %s: returns GameEngine+0x%X (the decoded offset) on gGameEngine - world #%ld",
+        logD("getter %s: returns GameEngine+0x%X (the decoded offset) on gGameEngine - world #%ld",
              kCntName[which], off, w);
     } else {
         logW("getter %s: returned %p, GameEngine %p + 0x%X = %p, gGameEngine %p - world #%ld",
@@ -563,7 +563,7 @@ bool __fastcall hk_PrimaryTransferActivate(TqCursorItemMove* self, void*, const 
     if (padClick) {
         UT_LE_SAVE;
         __try {
-            logI("panel: a click on the pad never drops the held item on the page - "
+            logD("panel: a click on the pad never drops the held item on the page - "
                  "PrimaryTransferActivate refused, item %u stays on the cursor", id);
         } __except (EXCEPTION_EXECUTE_HANDLER) {
         }
@@ -1115,7 +1115,7 @@ void nativeWidgetFirst(void* self) {
         first = vector[0]; last = vector[1];
         if (!first || !last || last <= first || last-first > 257 || last[-1] != &g_panelNativeWidget) return;
         found = last-1;
-        logI("panel: native input widget registered");
+        logD("panel: native input widget registered");
     }
     while (found > first) { *found = found[-1]; --found; }
     *first = &g_panelNativeWidget;
@@ -1176,7 +1176,7 @@ void hookLateLoadTick(bool gameThread) {
     const unsigned sum = readChecksum(engine());
     if (!sum) return;  // the load has not happened yet: the detour will see it
     if (InterlockedExchange(&g_dbTried, 1)) return;
-    logI("LoadMainDatabase detour never fired (checksum 0x%08X already set) - the database was "
+    logD("LoadMainDatabase detour never fired (checksum 0x%08X already set) - the database was "
          "loaded before this DLL; seen from the %s (no overlay)",
          sum, gameThread ? "game thread" : "worker");
 }
@@ -1283,7 +1283,7 @@ bool hooksInstall() {
     }
     const bool slot = patchCapSlot();
     InterlockedExchange(&g_viewHooksOk, (viewHooks == 4 && slot && guards == 2) ? 1 : 0);
-    logI("view detours: %d of 4 + the IsTransferCapable slot %s; sack guards %d of 2 "
+    logD("view detours: %d of 4 + the IsTransferCapable slot %s; sack guards %d of 2 "
          "(InventorySack::AddItem x2)%s; slot plates %s; the caravan frame %s",
          viewHooks, slot ? "patched" : "NOT patched", guards,
          guards == 2 ? "" : " - the view is unavailable without them",
@@ -1303,7 +1303,7 @@ bool hooksInstall() {
                                   : nullptr,
                               (void*)&hk_ItemBackground, (void**)&o_ItemBackground);
     ok += bg ? 1 : 0;
-    logI("rect route: %s", bg && o_PageDraw ? "the item widget background (TQ.exe PRE/POST-detour) "
+    logD("rect route: %s", bg && o_PageDraw ? "the item widget background (TQ.exe PRE/POST-detour) "
                                               "inside the page draw - items centred, tint and border slot-wide"
                            : "OFF - items keep their footprint (the ring tints the slot)");
     // Shared key gate for the search field and the standalone read-only viewer.
@@ -1315,7 +1315,7 @@ bool hooksInstall() {
         ok += gate ? 1 : 0;
         const bool live = gate && g_tq.ButtonEventGetText != nullptr;
         InterlockedExchange(&g_keyGateLive, live ? 1 : 0);
-        logI("search: %s", live ? "the key gate is installed (Display::HandleKeyEvent) - the field "
+        logD("search: %s", live ? "the key gate is installed (Display::HandleKeyEvent) - the field "
                                    "takes the keys only while it has the focus"
                             : "the key gate is NOT available - the field is drawn disabled and reads 'search off' (the "
                               "search_debug_query key still highlights)");
@@ -1347,7 +1347,7 @@ bool hooksInstall() {
         (void*)&hk_ProcessInput, (void**)&o_ProcessInput);
     ok += mouseGate ? 1 : 0;
     g_mouseGateLive=mouseGate;
-    logI("panel: native mouse gate %s", mouseGate ? "installed" : "UNAVAILABLE");
+    logD("panel: native mouse gate %s", mouseGate ? "installed" : "UNAVAILABLE");
     const int wantedAll = wanted + tipWanted + 2 + gateWanted;
     if (ok == wantedAll) {
         logI("detours installed: %d of %d", ok, wantedAll);

@@ -284,7 +284,7 @@ bool liveToggleOwnedOnly() {
     InterlockedExchange(&g_wantPage, 0);   // GD: a filter change starts the group at its top
     noteNav(false);
     markDirty();
-    logI("live: OWN %s - %s", g_ownedOnly ? "ON" : "OFF",
+    logD("live: OWN %s - %s", g_ownedOnly ? "ON" : "OFF",
          !g_ownedOnly ? "every record of the group"
          : g_ownKnown ? "only the records you own"
                       : "asked for; the owned set is not known yet, every record is shown");

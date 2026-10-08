@@ -469,7 +469,7 @@ const char* className(int cls) {
 void sayModule(const wchar_t* name) {
     HMODULE m = name ? GetModuleHandleW(name) : GetModuleHandleW(nullptr);
     if (!m) {
-        logI("module %S: not loaded", name ? name : L"TQ.exe");
+        logD("module %S: not loaded", name ? name : L"TQ.exe");
         return;
     }
     const unsigned char* base = (const unsigned char*)m;
@@ -497,7 +497,7 @@ void sayModule(const wchar_t* name) {
         GetFileSizeEx(f, &fsize);
         CloseHandle(f);
     }
-    logI("module %S: %lld bytes on disk, image 0x%lX, PE timestamp 0x%08lX (for the record - "
+    logD("module %S: %lld bytes on disk, image 0x%lX, PE timestamp 0x%08lX (for the record - "
          "nothing is gated on it)",
          name ? name : L"TQ.exe", (long long)fsize.QuadPart, image, stamp);
 }
@@ -526,7 +526,7 @@ void sayHost() {
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         version = nullptr;
     }
-    logI("host: WINE %s on %s %s - not Windows (for the record - nothing is gated on it)",
+    logD("host: WINE %s on %s %s - not Windows (for the record - nothing is gated on it)",
          version ? version : "(version unreadable)", sysname ? sysname : "?",
          release ? release : "?");
 }

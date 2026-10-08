@@ -151,7 +151,7 @@ void viewerClose() {
         g_viewerOwned,g_viewerSets,g_viewerFavorites,g_viewerQuery};
     g_viewer=false;g_viewerSearch=false;g_viewerHelp=false;g_viewerClosedAt=GetTickCount();
     searchViewerTooltipClear();
-    logI("viewer: closed");
+    logD("viewer: closed");
 }
 bool viewerPlayer() {
     bool result=false;
@@ -187,7 +187,7 @@ void viewerToggle() {
     viewerRebuild();
     g_viewerRow=utViewerClampOffset(position.row,viewerTotalRows(),viewerWindowRows());
     g_viewerCategoryTop=utViewerClampOffset(g_viewerCategoryTop,int(g_viewerCategories.size()),kViewerCategoryRows);
-    logI("viewer: opened (key %d), read-only",g_cfg.viewerHotkey);
+    logD("viewer: opened (key %d), read-only",g_cfg.viewerHotkey);
 }
 bool viewerHit(float x,float y,float rx,float ry,float w,float h) {
     return x>=rx && x<rx+w && y>=ry && y<ry+h;
@@ -347,7 +347,7 @@ void viewerStarPrepare(bool noWorldYet) {
     TqStdString name;char heap[MAX_PATH+2];
     if(ok)ok=tqStdStringOver(&name,heap,sizeof(heap),directory,strlen(directory)) && viewerStarAddSource(&name);
     g_viewerStarSource=ok;g_viewerStarOff=!ok;
-    logI("viewer: star textures %s",ok?"generated; native directory source registered":"unavailable");
+    logD("viewer: star textures %s",ok?"generated; native directory source registered":"unavailable");
 }
 void viewerStar(TqCanvas* canvas,float x,float y,float scale,bool favorite,const TqColor&) {
     if(!g_viewerStarSource || !g_tq.CanvasRenderRectTex)return;

@@ -40,13 +40,12 @@ bool journalPath(HMODULE museum,wchar_t* output){
     return false;
 }
 DWORD WINAPI watcher(void*){
-    std::set<std::string> previous,cachedKeys;bool previousKnown=false,cachedKnown=false;bool reported=false;
+    std::set<std::string> previous,cachedKeys;bool previousKnown=false,cachedKnown=false;bool reported=false,faultLogged=false;
     for(;;){
         try {
             HMODULE museum=GetModuleHandleW(L"TitanQuestMuseum.asi");wchar_t path[MAX_PATH]={};std::string text;
             bool changed=false;const bool available=museum&&journalPath(museum,path)&&read(path,text,changed);
-            if(available&&changed){cachedKnown=radar::collectedJournal(text,cachedKeys);
-                logI("Museum JSON changed: parsed once, valid=%d, %zu collected records",cachedKnown?1:0,cachedKeys.size());}
+            if(available&&changed)cachedKnown=radar::collectedJournal(text,cachedKeys);
             if(!available){cache.forget();cachedKnown=false;cachedKeys.clear();}
             const bool known=available&&cachedKnown;std::set<std::string> collected=known?cachedKeys:std::set<std::string>();
             if(!reported||known!=previousKnown||collected!=previous){
@@ -55,11 +54,18 @@ DWORD WINAPI watcher(void*){
                     std::memcpy(copied[i++].record,record.c_str(),record.size()+1);}
                 if(!valid){copied.clear();collected.clear();}
                 if(provider->setCollection(valid&&known?copied.data():nullptr,valid&&known?unsigned(copied.size()):0,valid&&known?1:0)){
-                    previousKnown=known&&valid;previous=collected;reported=true;
-                    logI("Museum JSON filter: %s, %zu collected records",previousKnown?"active":"unavailable (all best sources shown)",previous.size());
+                    const bool active=known&&valid;
+                    if(!reported||active!=previousKnown){
+                        if(!active&&previousKnown)logW("Museum collection unavailable or invalid; all best sources restored");
+                        else logI("Museum filter: %s, %zu collected records",active?"active":"unavailable",collected.size());
+                    }
+                    previousKnown=active;previous=collected;reported=true;
                 }
             }
-        }catch(...){provider->setCollection(nullptr,0,0);previousKnown=false;previous.clear();reported=false;}
+        }catch(...){
+            if(!faultLogged){faultLogged=true;logW("Museum collection watcher exception; filter reset (further exceptions suppressed)");}
+            provider->setCollection(nullptr,0,0);previousKnown=false;previous.clear();reported=false;
+        }
         Sleep(1000);
     }
 }

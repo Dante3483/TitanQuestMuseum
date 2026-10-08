@@ -37,3 +37,11 @@
   atomic file replacement, and never write to the journal.
 - MobRadar and MuseumRadar build separately; MobRadar exports its versioned API.
 - In-game verification of this new filter is still pending.
+
+## Concise logging update
+
+Routine scan/source/collection-refresh logs are removed. Museum UI details now
+require debug mode; errors and collection safety records remain visible at info.
+Slow scan warnings are limited to once per minute and repeated Core frame faults
+to once per 30 seconds. No tests were run for this logging-only change at the
+user's request; all four modules were rebuilt and the root dist refreshed.

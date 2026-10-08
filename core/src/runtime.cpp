@@ -99,7 +99,8 @@ DWORD WINAPI calculateSources(void*){
             {std::lock_guard<std::mutex> lock(stateMutex);
                 if(contextValid&&context==activeContext&&collected==collectedRecords){sourceText=std::move(output);resultTargets=std::move(targets);
                     resultContext=context;resultReady=true;++revision;}}
-            logI("sources calculated: level %d, party %d, difficulty %d",context.averageLevel,context.players,context.difficulty);
+            static bool announced=false;
+            if(!announced){announced=true;logI("source model ready");}
         }
     } catch(...){std::lock_guard<std::mutex> lock(stateMutex);failed=true;logW("source worker failed");}
     return 1;
@@ -169,14 +170,23 @@ void frame(){
     if(!c){addonHostFrame(nullptr,0,0,player,busy!=0);return;}
     if(player&&!fontTried){fontTried=true;static char name[]="fonts/albertus mt light.fnt";
         EngineString str={};str.pointer=name;str.size=unsigned(std::strlen(name));str.capacity=str.size;
-        font=loadFont(gfx,&str,1,0);logI("native font %s",font?"loaded":"unavailable");}
+        font=loadFont(gfx,&str,1,0);
+        static bool fontWarning=false;if(!font&&!fontWarning){fontWarning=true;logW("native font unavailable");}}
     if(!player){font=nullptr;fontTried=false;}
     if(!font){addonHostFrame(nullptr,width(c),height(c),player,busy!=0);return;}
     Renderer renderer(c);addonHostFrame(&renderer,width(c),height(c),player,busy!=0);
 }
-void guardedFrame(){__try {frame();}__except(EXCEPTION_EXECUTE_HANDLER){logW("guarded frame fault");}}
+void reportFrameFault(const char* reason){
+    static volatile LONG last=0;const DWORD now=GetTickCount();
+    const LONG previous=InterlockedCompareExchange(&last,0,0);
+    if(previous&&now-DWORD(previous)<30000)return;
+    const LONG next=LONG(now?now:1);
+    if(InterlockedCompareExchange(&last,next,previous)==previous)
+        logW("%s (repeated frame faults limited to once per 30 seconds)",reason);
+}
+void guardedFrame(){__try {frame();}__except(EXCEPTION_EXECUTE_HANDLER){reportFrameFault("guarded frame fault");}}
 void __fastcall present(void* self,void*){
-    try {guardedFrame();}catch(...){logW("frame exception");}
+    try {guardedFrame();}catch(...){reportFrameFault("frame exception");}
     originalPresent(self);
 }
 void __fastcall key(void* self,void*,const void* event){
@@ -277,7 +287,7 @@ int32_t TQM_CALL coreSetCollection(const TqtCollectedItemV1* items,uint32_t coun
         collectionKnown=known!=0;collectedRecords.swap(next);
         resultTargets.clear();resultReady=false;++revision;
         if(contextValid){wanted=activeContext;pending=true;if(sourceEvent)SetEvent(sourceEvent);}
-        logI("radar collection: %zu collected records, known=%d",collectedRecords.size(),collectionKnown?1:0);return 1;
+        return 1;
     }catch(...){return 0;}
 }
 #ifdef TQT_CORE_TEST

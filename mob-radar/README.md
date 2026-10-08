@@ -58,14 +58,13 @@ Unloaded creatures cannot be detected. Engine-owned list buffers are freed
 through the engine's CRT. Actor pointers are not retained for later dereferencing.
 Core's same-name source variant grouping and exact co-best tolerance are retained.
 Non-character class tables are rejected before fetching record names. Only class
-tables are cached; actor pointers are never kept across scans. Scan diagnostics
-include `time-ms` and the preceding interval's `peak-ms`. The old detailed
-arachnid diagnostics were removed. Panel label measurements are cached until
+tables are cached; actor pointers are never kept across scans. Routine scans and creature names are not logged. Scans taking at least 8 ms
+produce a warning with duration and object count, at most once per minute. Panel label measurements are cached until
 the displayed name, font or available width changes.
 
 If Core is missing or its API is incompatible, this add-on stays inactive and
 logs the dependency error. Inspect `TitanQuestMobRadar.log` for registration,
-source snapshot revisions, periodic scan diagnostics and any scan fault.
+dependency errors, slow-scan warnings and scan faults.
 The log supports reading while the game is running. Callback faults are also reported
 in the Core log with the add-on registration token.
 

@@ -839,7 +839,7 @@ bool realTick(bool worldUp) {
     const bool complete = g_real->done >= (int)g_real->items.size();
     if (complete && (worked || built) && !g_realSaid) {
         g_realSaid = true;
-        logI("search: the Transfer page's items are read - %d item(s) in %.1f ms",
+        logD("search: the Transfer page's items are read - %d item(s) in %.1f ms",
              (int)g_real->items.size(), g_real->ms);
     }
     // the matches: the same fold and substring test as the collection's
@@ -896,7 +896,7 @@ void applyToPage() { liveSearchApply(g_active && !off(), off() ? 0u : indexedMas
 void sayIndexBuilt() {
     if (g_infoSaid || !g_ix || g_ix->processed < g_ix->total) return;
     g_infoSaid = true;
-    logI("search: index built - %d records (%u unindexable), %u lines kept, %u dropped (0x11 x%u, "
+    logD("search: index built - %d records (%u unindexable), %u lines kept, %u dropped (0x11 x%u, "
          "0x0E x%u, 0x1C x%u), %u KB, %.0f ms total (mean %.0f us, max %.0f us at %s)",
          g_ix->total, g_unindexable, g_linesKept, g_dropReq + g_dropLore + g_dropDir, g_dropReq,
          g_dropLore, g_dropDir, (unsigned)((g_bytes + 1023) / 1024), g_totalMs,
@@ -1268,7 +1268,7 @@ bool searchFieldFocus() {
     InterlockedExchange(&g_lastKey, (LONG)GetTickCount());
     if (InterlockedExchange(&g_focus, 1)) return true;   // it had it already
     InterlockedExchange(&g_wantStart, 1);   // the next Update starts the index and syncs the group
-    logI("search: the field has the focus - type to search; Enter keeps the query, Esc clears it");
+    logD("search: the field has the focus - type to search; Enter keeps the query, Esc clears it");
     return true;
 }
 
@@ -1310,7 +1310,7 @@ void searchFieldBlur(const char* why) {
     } catch (...) {
         q.clear();
     }
-    logI("search: the field lost the focus - %s (the field holds \"%s\")", why ? why : "?",
+    logD("search: the field lost the focus - %s (the field holds \"%s\")", why ? why : "?",
          q.c_str());
 }
 
